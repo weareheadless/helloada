@@ -2,11 +2,18 @@ import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 
 import { currentUser } from '@/lib/auth'
-import { registerWebsiteTenant } from '@/lib/website'
+import { registerWebsiteTenant, startWebsiteBootstrap } from '@/lib/website'
 
 function slugify(value: string) {
   const slug = value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 70)
   return slug || 'website'
+}
+
+const bootstrapSteps = ['requested', 'creating_repository', 'creating_worker', 'creating_data', 'deploying_shell', 'ready', 'needs_attention'] as const
+type BootstrapStep = typeof bootstrapSteps[number]
+
+function asBootstrapStep(value: string): BootstrapStep {
+  return (bootstrapSteps as readonly string[]).includes(value) ? value as BootstrapStep : 'needs_attention'
 }
 
 export async function POST(request: Request) {
@@ -48,7 +55,17 @@ export async function POST(request: Request) {
     error?: string
   }
   if (registrationResponse.ok) {
-    const registeredTenantId = registration.tenant_id || website.tenantId
+    const registeredTenantId = String(registration.tenant_id || website.tenantId || baseSlug)
+    const bootstrapResponse = await startWebsiteBootstrap(registeredTenantId, name)
+    const bootstrap = await bootstrapResponse.json().catch(() => ({})) as {
+      status?: string
+      step?: string
+      diagnostic?: string
+      resource_receipts?: Record<string, unknown>
+    }
+    const bootstrapStatus = String(bootstrap.status || (bootstrapResponse.ok ? 'queued' : 'failed'))
+    const bootstrapStep = asBootstrapStep(String(bootstrap.step || (bootstrapStatus === 'failed' ? 'needs_attention' : 'requested')))
+    const bootstrapFailed = bootstrapStatus === 'failed' || bootstrapStep === 'needs_attention'
     await auth.payload.update({
       collection: 'websites',
       id: website.id,
@@ -60,18 +77,27 @@ export async function POST(request: Request) {
       id: bootstrapJob.id,
       req: auth.req,
       data: {
-        step: 'ready',
-        status: 'done',
+        step: bootstrapStep,
+        status: bootstrapFailed ? 'failed' : bootstrapStatus === 'done' ? 'done' : 'running',
         resourceReceipts: {
           tenant: {
             tenantId: registeredTenantId,
             status: registration.status || 'ready',
             schemaVersion: registration.schema_version || null,
           },
+          bootstrap: bootstrap.resource_receipts || {},
         },
-        diagnostic: '',
+        diagnostic: String(bootstrap.diagnostic || '').slice(0, 500),
       },
     })
+    if (bootstrapFailed) {
+      await auth.payload.update({
+        collection: 'websites',
+        id: website.id,
+        req: auth.req,
+        data: { phase: 'needs_attention' },
+      })
+    }
   } else {
     const diagnostic = String(registration.detail || registration.error || 'The site workspace could not be registered').slice(0, 500)
     await auth.payload.update({
@@ -93,6 +119,6 @@ export async function POST(request: Request) {
     phase: registrationResponse.ok ? website.phase : 'needs_attention',
     tenantId: registration.tenant_id || website.tenantId,
     bootstrapJobId: bootstrapJob.id,
-    bootstrapStatus: registrationResponse.ok ? 'done' : 'failed',
+    bootstrapStatus: registrationResponse.ok ? 'queued' : 'failed',
   }, { status: 201 })
 }

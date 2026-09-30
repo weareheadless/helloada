@@ -52,6 +52,29 @@ export function registerWebsiteTenant(tenantId: string, displayName: string) {
   })
 }
 
+export function startWebsiteBootstrap(tenantId: string, displayName: string) {
+  return siteAgentRequest(tenantId, '/bootstrap', {
+    method: 'POST',
+    body: JSON.stringify({ display_name: displayName }),
+  })
+}
+
+export function websiteBootstrapStatus(tenantId: string) {
+  return siteAgentRequest(tenantId, '/bootstrap')
+}
+
+export function websiteHistory(tenantId: string, limit = 50) {
+  return siteAgentRequest(tenantId, `/history?limit=${Math.max(1, Math.min(100, Math.trunc(limit)))}`)
+}
+
+export function restoreWebsiteVersion(tenantId: string, versionId: string | number) {
+  return siteAgentRequest(tenantId, `/versions/${encodeURIComponent(String(versionId))}/restore`, { method: 'POST' })
+}
+
+export function approveWebsiteDraft(tenantId: string, draftId: string | number) {
+  return siteAgentRequest(tenantId, `/drafts/${encodeURIComponent(String(draftId))}/approve`, { method: 'POST' })
+}
+
 type RemoteOperation = {
   id?: number | string | null
   tool?: string | null

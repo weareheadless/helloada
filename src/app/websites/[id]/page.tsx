@@ -17,6 +17,7 @@ export default async function WebsitePage({ params }: { params: Promise<{ id: st
     name: String(website.name || 'Untitled website'),
     phase: String(website.phase || 'intake'),
     workerUrl: website.workerUrl ? String(website.workerUrl) : null,
+    adminUrl: website.adminUrl ? String(website.adminUrl) : null,
     tenantId: website.tenantId ? String(website.tenantId) : null,
   }
   const bootstrapJobs = await auth.payload.find({

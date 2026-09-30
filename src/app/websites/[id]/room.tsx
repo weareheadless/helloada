@@ -47,7 +47,7 @@ export function WebsiteRoom({
   bootstrap,
   initialRecommendations,
 }: {
-  website: { id: string; name: string; phase?: string; workerUrl?: string | null; tenantId?: string | null }
+  website: { id: string; name: string; phase?: string; workerUrl?: string | null; adminUrl?: string | null; tenantId?: string | null }
   bootstrap: BootstrapState
   initialRecommendations: Recommendation[]
 }) {
@@ -56,6 +56,7 @@ export function WebsiteRoom({
   const [recommendations, setRecommendations] = useState(initialRecommendations)
   const [bootstrapState, setBootstrapState] = useState(bootstrap)
   const [workerUrl, setWorkerUrl] = useState(website.workerUrl || '')
+  const [adminUrl, setAdminUrl] = useState(website.adminUrl || '')
   const [conversationId, setConversationId] = useState<number | null>(null)
   const [intake, setIntake] = useState<IntakeState | null>(null)
   const [busy, setBusy] = useState(false)
@@ -66,13 +67,15 @@ export function WebsiteRoom({
   const refreshBootstrap = useCallback(async () => {
     const response = await fetch(`/api/helloada/websites/${website.id}/bootstrap`, { cache: 'no-store' })
     if (!response.ok) return
-    const body = await response.json() as { website?: { workerUrl?: string | null }; bootstrap?: BootstrapState }
+    const body = await response.json() as { website?: { workerUrl?: string | null; adminUrl?: string | null }; bootstrap?: BootstrapState }
     if (body.bootstrap) {
       setBootstrapState(body.bootstrap)
       if (body.bootstrap.status === 'failed') setStatus('Workspace needs attention')
     }
     const nextWorkerUrl = body.website?.workerUrl || ''
     if (nextWorkerUrl) setWorkerUrl(nextWorkerUrl)
+    const nextAdminUrl = body.website?.adminUrl || (nextWorkerUrl ? `${nextWorkerUrl.replace(/\/$/, '')}/admin` : '')
+    if (nextAdminUrl) setAdminUrl(nextAdminUrl)
     if (body.bootstrap && (body.bootstrap.status === 'ready' || body.bootstrap.status === 'done')) {
       setStatus(nextWorkerUrl ? 'Preview ready' : 'Workspace ready')
     }
@@ -237,6 +240,7 @@ export function WebsiteRoom({
       </div>
       <div className="room-panel" style={{ marginTop: 15 }}>
         <div className="status-line">{status}</div>
+        {adminUrl && <p><a className="button" href={adminUrl} target="_blank" rel="noreferrer">Open the managed workspace ↗</a></p>}
         <div style={{ display: 'grid', gap: 10 }}>{messages.map((item, index) => <p key={`${item.role}-${index}`}><strong>{item.role === 'you' ? 'You' : 'Ada'}:</strong> {item.text}</p>)}</div>
         <form onSubmit={send}>
           <div className="field"><label htmlFor="brief-message">Tell Ada what matters</label><textarea id="brief-message" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="What does the business do, and what should the site help someone feel or do?" rows={4} style={{ width: '100%', border: '1px solid var(--line)', padding: 14, background: 'rgba(255,255,255,.28)', color: 'var(--ink)', font: '14px var(--body)', resize: 'vertical' }} /></div>

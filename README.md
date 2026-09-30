@@ -5,10 +5,10 @@ The central HelloAda account and multi-website control-plane shell.
 This app intentionally uses Payload's existing authentication model and keeps
 customer website records isolated by owner. A website creation records the
 durable bootstrap job and asks the shared site-agent control plane to register
-an isolated local tenant. The room can display bootstrap progress, confirm the
-intake brief, request a read-only direction, and approve the next owner
-recommendation; the later Cloudflare resource worker still needs to consume the
-job before `workerUrl` is populated.
+and asynchronously bootstrap an isolated Next/React/Payload tenant. The room
+displays durable progress, hands the owner into the managed workspace once the
+Worker is healthy, confirms the intake brief, requests a read-only direction,
+and approves the next owner recommendation.
 
 ## Local development
 

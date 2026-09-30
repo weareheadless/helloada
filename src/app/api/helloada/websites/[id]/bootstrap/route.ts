@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 
 import { currentUser } from '@/lib/auth'
-import { ownedWebsite, registerWebsiteTenant } from '@/lib/website'
+import { ownedWebsite, startWebsiteBootstrap, websiteBootstrapStatus } from '@/lib/website'
 
 const SENSITIVE_KEY = /(secret|token|password|credential|api[_-]?key)/i
 
@@ -23,6 +23,10 @@ const stepLabels: Record<string, string> = {
   ready: 'Workspace ready',
   needs_attention: 'Workspace needs attention',
 }
+const bootstrapSteps = ['requested', 'creating_repository', 'creating_worker', 'creating_data', 'deploying_shell', 'ready', 'needs_attention'] as const
+type BootstrapStep = typeof bootstrapSteps[number]
+const asBootstrapStep = (value: string): BootstrapStep =>
+  (bootstrapSteps as readonly string[]).includes(value) ? value as BootstrapStep : 'needs_attention'
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await currentUser(await headers())
@@ -42,23 +46,34 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const job = jobs.docs[0]
   const status = String(job?.status || 'queued')
   const step = String(job?.step || 'requested')
+  let remote: Record<string, unknown> | null = null
+  if (website.tenantId) {
+    const remoteResponse = await websiteBootstrapStatus(String(website.tenantId))
+    if (remoteResponse.ok) remote = await remoteResponse.json().catch(() => null) as Record<string, unknown> | null
+  }
+  const remoteReceipts = remote?.resource_receipts && typeof remote.resource_receipts === 'object'
+    ? remote.resource_receipts as Record<string, unknown>
+    : {}
+  const remoteStatus = String(remote?.status || status)
+  const remoteStep = String(remote?.step || step)
+  const remoteDiagnostic = String(remote?.diagnostic || job?.diagnostic || '')
 
   return NextResponse.json({
     website: {
       id: website.id,
       phase: website.phase,
-      workerUrl: website.workerUrl || null,
+      workerUrl: website.workerUrl || (remoteReceipts.deploying_shell as { worker_url?: string } | undefined)?.worker_url || null,
       adminUrl: website.adminUrl || null,
       tenantId: website.tenantId || null,
     },
     bootstrap: job ? {
       id: job.id,
-      status,
-      step,
-      retries: Number(job.retries || 0),
-      label: stepLabels[step] || 'Preparing your workspace',
-      diagnostic: job.diagnostic || '',
-      resourceReceipts: publicReceipt(job.resourceReceipts || {}),
+      status: remoteStatus,
+      step: remoteStep,
+      retries: Number(job?.retries || 0),
+      label: stepLabels[remoteStep] || 'Preparing your workspace',
+      diagnostic: remoteDiagnostic,
+      resourceReceipts: publicReceipt(Object.keys(remoteReceipts).length ? remoteReceipts : job?.resourceReceipts || {}),
       createdAt: job.createdAt,
       updatedAt: job.updatedAt,
     } : {
@@ -102,40 +117,45 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     data: { step: 'creating_data', status: 'running', retries, diagnostic: '' },
   })
 
-  const response = await registerWebsiteTenant(String(website.tenantId), String(website.name || website.tenantId))
+  const response = await startWebsiteBootstrap(String(website.tenantId), String(website.name || website.tenantId))
   const registration = await response.json().catch(() => ({})) as {
     tenant_id?: string
     schema_version?: number
     status?: string
+    step?: string
+    diagnostic?: string
+    resource_receipts?: Record<string, unknown>
     detail?: string
     error?: string
   }
   if (response.ok) {
+    const bootstrapStatus = String(registration.status || 'queued')
+    const bootstrapStep = asBootstrapStep(String(registration.step || 'requested'))
+    const completed = bootstrapStatus === 'done'
+    const deployedWorkerUrl = (registration.resource_receipts?.deploying_shell as { worker_url?: string } | undefined)?.worker_url || website.workerUrl || ''
     await auth.payload.update({
       collection: 'bootstrap-jobs',
       id: job.id,
       req: auth.req,
       data: {
-        step: 'ready',
-        status: 'done',
-        resourceReceipts: {
-          tenant: {
-            tenantId: registration.tenant_id || website.tenantId,
-            status: registration.status || 'ready',
-            schemaVersion: registration.schema_version || null,
-          },
-        },
-        diagnostic: '',
+        step: bootstrapStep,
+        status: completed ? 'done' : 'running',
+        resourceReceipts: registration.resource_receipts || {},
+        diagnostic: String(registration.diagnostic || ''),
       },
     })
     await auth.payload.update({
       collection: 'websites',
       id: website.id,
       req: auth.req,
-      data: { phase: 'intake' },
+        data: {
+          phase: completed ? 'live' : 'intake',
+          workerUrl: deployedWorkerUrl || undefined,
+          adminUrl: deployedWorkerUrl ? `${deployedWorkerUrl.replace(/\/$/, '')}/admin` : undefined,
+        },
     })
   } else {
-    const diagnostic = String(registration.detail || registration.error || 'The site workspace could not be registered').slice(0, 500)
+    const diagnostic = String(registration.diagnostic || registration.detail || registration.error || 'The site workspace could not be bootstrapped').slice(0, 500)
     await auth.payload.update({
       collection: 'bootstrap-jobs',
       id: job.id,
@@ -154,6 +174,6 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     ok: response.ok,
     bootstrapJobId: job.id,
     status: response.ok ? 'done' : 'failed',
-    diagnostic: response.ok ? '' : String(registration.detail || registration.error || 'The site workspace could not be registered').slice(0, 500),
-  }, { status: response.ok ? 200 : 502 })
+    diagnostic: response.ok ? String(registration.diagnostic || '') : String(registration.diagnostic || registration.detail || registration.error || 'The site workspace could not be bootstrapped').slice(0, 500),
+  }, { status: response.ok ? (registration.status === 'done' ? 200 : 202) : 502 })
 }
