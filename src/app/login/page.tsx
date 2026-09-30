@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FormEvent, useState } from 'react'
 
+import { BrandLink } from '@/components/brand-link'
+
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -30,7 +32,7 @@ export default function LoginPage() {
 
   return (
     <main className="auth-shell">
-      <nav className="topbar"><Link className="wordmark" href="/"><span className="wordmark-mark">A</span>HelloAda</Link><Link className="text-link" href="/">Back home</Link></nav>
+      <nav className="topbar"><BrandLink /><Link className="text-link" href="/">Back home</Link></nav>
       <section className="auth-card">
         <div className="eyebrow"><span className="eyebrow-dot" /> welcome back</div>
         <h1>Pick up<br /><em>where you left off.</em></h1>

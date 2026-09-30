@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { currentUser } from '@/lib/auth'
+import { BrandLink } from '@/components/brand-link'
 import { CreateWebsiteForm } from './ui'
 
 export default async function PortfolioPage() {
@@ -18,7 +19,7 @@ export default async function PortfolioPage() {
 
   return (
     <main className="app-shell">
-      <nav className="app-header"><Link className="wordmark" href="/"><span className="wordmark-mark">A</span>HelloAda</Link><span className="text-link">{auth.user.email}</span></nav>
+      <nav className="app-header"><BrandLink /><span className="text-link">{auth.user.email}</span></nav>
       <div className="app-main">
         <div className="app-intro"><div><div className="eyebrow"><span className="eyebrow-dot" /> your portfolio</div><h1 className="app-heading">A home for<br /><em>every idea.</em></h1></div><p>Start with a conversation. Ada keeps the work, the preview, and the next decision together.</p></div>
         <section className="site-grid" aria-label="Your websites">

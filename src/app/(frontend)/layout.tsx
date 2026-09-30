@@ -1,8 +1,8 @@
 import './styles.css'
 
 export const metadata = {
-  title: 'HelloAda — your websites, in one place',
-  description: 'Create, shape, and manage websites with Ada.',
+  title: 'HelloAda — the AI that builds and runs your website',
+  description: 'Tell Ada about your business. She plans, codes, launches and improves a custom website while you stay in control.',
 }
 
 export default function FrontendLayout({ children }: { children: React.ReactNode }) {
