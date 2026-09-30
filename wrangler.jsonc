@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
+  "name": "helloada",
+  "compatibility_date": "2025-08-15",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "vars": {
+    "NEXT_PUBLIC_SITE_URL": "https://helloada.app",
+    "SITE_AGENT_URL": "https://api.helloada.app/v1"
+  },
+  "d1_databases": [
+    {
+      "binding": "D1",
+      "database_name": "helloada",
+      "database_id": "54955f1d-7470-46eb-8760-693891dab001"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "R2",
+      "bucket_name": "helloada-media"
+    }
+  ]
+}
