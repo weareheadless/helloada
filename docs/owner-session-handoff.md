@@ -6,20 +6,30 @@ an authentication path.
 
 ## Runtime secrets
 
-The HelloAda server runtime must have `HELLOADA_HANDOFF_PRIVATE_KEY`: one
-base64url-encoded DER PKCS#8 RSA private key. Site-Agent's protected VPS service
-environment must have `HELLOADA_HANDOFF_PUBLIC_KEY`: the matching base64url-
+The HelloAda Worker requires `HELLOADA_HANDOFF_PRIVATE_KEY`: one
+base64url-encoded DER PKCS#8 RSA private key. Site-Agent's protected API
+environment requires `HELLOADA_HANDOFF_PUBLIC_KEY`: the matching base64url-
 encoded DER SPKI public key. The canonical tenant template pins the issuer to
 `https://helloada.app` and bootstrap copies only the public key into each
 tenant Worker's runtime variables. Never place either key in Git, a client
 bundle, a tenant repository, or a URL.
 
-Generate the pair once using an approved secure key-management process. Store
-the private key only in the HelloAda hosting provider's server-side secret
-store; store the public key only in the Site-Agent VPS environment. Do not use
-an interactive command that writes the private value to shell history or CI
-logs. New-site bootstrap fails closed before provisioning if the public key is
-missing or malformed.
+The private key is held on the Site-Agent VPS at
+`/SOCIAL/configs/helloada-app/secrets.json`, owned by the release account with
+mode `0600`. The central release pipeline reads that file only for the exact
+HelloAda Worker upload and passes it to Wrangler through a short-lived
+mode-`0600` secrets file; the value is not supplied to dependency installation,
+tests, lint, typecheck, or build. The matching public key is held in
+`/SOCIAL/configs/site-agent-api/.env` and is loaded by the API service. Neither
+value is printed in deployment output or stored in Git.
+
+Generate the pair once on the protected VPS using the documented secure
+operator procedure. Do not use an interactive command that writes the private
+value to shell history, process arguments, CI logs, or chat output. New-site
+bootstrap fails closed before provisioning if the public key is missing or
+malformed. HelloAda's production release fails closed if the private key is
+missing, insecurely permissioned, malformed, or does not match the API public
+key.
 
 ## Request contract
 
@@ -38,7 +48,10 @@ first-user registration remain disabled. A failed exchange needs a newly issued
 grant; do not add a direct-admin, shared-service-token or local-password
 fallback.
 
-Rotate the pair only as a coordinated operation: update the HelloAda private
-secret and Site-Agent public secret together, then release the new public
-binding to every registered tenant through the canonical Site-Agent deployment
-pipeline. Until all tenants use the matching public key, handoff is unavailable.
+Rotate the pair only as a coordinated operation: write the new private and
+public values to their protected VPS locations, then release the API with the
+new public key and HelloAda with the matching private key through the canonical
+Site-Agent pipeline. New tenant bootstrap uses the public key loaded by the
+current API. Existing tenant Workers must receive the new public binding through
+an explicit Site-Agent release before old-key retirement; until every affected
+tenant is updated, handoff is unavailable for that tenant.
