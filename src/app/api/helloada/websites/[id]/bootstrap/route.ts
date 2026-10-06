@@ -2,33 +2,15 @@ import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 
 import { currentUser } from '@/lib/auth'
+import { bootstrapStepLabels, isBootstrapStatus, isBootstrapStep } from '@/lib/bootstrap-contract'
 import { tenantAdminUrl } from '@/lib/tenant-admin'
 import { ownedWebsite, startWebsiteBootstrap, websiteBootstrapStatus } from '@/lib/website'
-
-const stepLabels: Record<string, string> = {
-  requested: 'Opening your workspace',
-  creating_repository: 'Preparing the website',
-  creating_data: 'Preparing private website data',
-  creating_worker: 'Connecting the website services',
-  queueing_shell_release: 'Making the Payload admin ready',
-  deploying_shell: 'Making the Payload admin ready',
-  ready: 'Your Payload admin is ready',
-  needs_attention: 'Workspace needs attention',
-}
-const validSteps = new Set(Object.keys(stepLabels))
-const validStatuses = new Set(['queued', 'running', 'awaiting_release', 'done', 'failed'])
 
 function workerUrlFrom(receipts: Record<string, unknown>) {
   const worker = receipts.creating_worker
   if (!worker || typeof worker !== 'object') return null
   const value = (worker as { worker_url?: unknown }).worker_url
   return typeof value === 'string' && value.trim() ? value.trim() : null
-}
-
-function localRegistrationFailure(job: Record<string, unknown> | undefined) {
-  if (job?.status !== 'failed') return false
-  const receipts = job.resourceReceipts
-  return !receipts || typeof receipts !== 'object' || !('tenant' in receipts)
 }
 
 function receiptAdminUrl(workerUrl: string | null) {
@@ -58,23 +40,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     limit: 1,
     depth: 0,
   })
-  const job = jobs.docs[0] as Record<string, unknown> | undefined
+  const job = jobs.docs[0]
   if (!website.tenantId) return NextResponse.json({ error: 'tenant_identity_missing' }, { status: 409 })
 
   const remoteResponse = await websiteBootstrapStatus(String(website.tenantId))
   if (!remoteResponse.ok) {
-    if (localRegistrationFailure(job)) {
-      return NextResponse.json({
-        website: { id: website.id, adminUrl: null },
-        bootstrap: {
-          id: job?.id,
-          status: 'failed',
-          step: 'needs_attention',
-          label: stepLabels.needs_attention,
-          workspaceReady: false,
-        },
-      }, { headers: { 'cache-control': 'no-store' } })
-    }
     return NextResponse.json({ error: 'site_agent_status_unavailable' }, { status: 502 })
   }
 
@@ -86,8 +56,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const step = String(remote.step || '')
   if (
     remote.tenant_id !== website.tenantId
-    || !validStatuses.has(status)
-    || !validSteps.has(step)
+    || !isBootstrapStatus(status)
+    || !isBootstrapStep(step)
     || typeof remote.workspace_ready !== 'boolean'
     || typeof remote.website_live !== 'boolean'
   ) {
@@ -125,7 +95,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       id: job?.id || null,
       status,
       step,
-      label: stepLabels[step],
+      label: bootstrapStepLabels[step],
       workspaceReady,
       websiteLive: remote.website_live,
       retries: Number(job?.retries || 0),
@@ -171,8 +141,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const step = String(state.step || '')
   if (
     state.tenant_id !== website.tenantId
-    || !validStatuses.has(status)
-    || !validSteps.has(step)
+    || !isBootstrapStatus(status)
+    || !isBootstrapStep(step)
     || typeof state.workspace_ready !== 'boolean'
     || typeof state.website_live !== 'boolean'
   ) {

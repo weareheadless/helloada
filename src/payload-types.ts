@@ -179,12 +179,13 @@ export interface BootstrapJob {
         | 'creating_repository'
         | 'creating_worker'
         | 'creating_data'
+        | 'queueing_shell_release'
         | 'deploying_shell'
         | 'ready'
         | 'needs_attention'
       )
     | null;
-  status?: ('queued' | 'running' | 'done' | 'failed') | null;
+  status?: ('queued' | 'running' | 'awaiting_release' | 'done' | 'failed') | null;
   retries?: number | null;
   resourceReceipts?:
     | {

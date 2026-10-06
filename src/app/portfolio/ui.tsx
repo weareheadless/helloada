@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 const pendingKeyStorage = 'helloada.pendingWebsiteCreation'
@@ -10,26 +10,24 @@ export function CreateWebsiteForm() {
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [requestKey, setRequestKey] = useState('')
-
-  useEffect(() => {
-    const savedKey = window.sessionStorage.getItem(pendingKeyStorage)
-    const key = savedKey || window.crypto.randomUUID()
-    if (!savedKey) window.sessionStorage.setItem(pendingKeyStorage, key)
-    setRequestKey(key)
-  }, [])
+  const requestKey = useRef<string | null>(null)
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!requestKey || busy) return
+    if (busy) return
     setBusy(true)
     setError('')
     try {
+      const key = requestKey.current
+        || window.sessionStorage.getItem(pendingKeyStorage)
+        || window.crypto.randomUUID()
+      window.sessionStorage.setItem(pendingKeyStorage, key)
+      requestKey.current = key
       const response = await fetch('/api/helloada/websites', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'idempotency-key': requestKey,
+          'idempotency-key': key,
         },
         body: JSON.stringify({ name }),
       })
@@ -41,7 +39,7 @@ export function CreateWebsiteForm() {
         if (result.error === 'idempotency_conflict') {
           const nextKey = window.crypto.randomUUID()
           window.sessionStorage.setItem(pendingKeyStorage, nextKey)
-          setRequestKey(nextKey)
+          requestKey.current = nextKey
         }
         setBusy(false)
         return
@@ -62,7 +60,7 @@ export function CreateWebsiteForm() {
       </div>
       <form className="create-form" onSubmit={submit}>
         <input aria-label="Website name" placeholder="Name the website" value={name} onChange={(event) => setName(event.target.value)} required maxLength={120} />
-        <button className="button button-primary" type="submit" disabled={busy || !requestKey}>
+        <button className="button button-primary" type="submit" disabled={busy}>
           {busy ? 'Preparing…' : 'Create website'} <span aria-hidden="true">→</span>
         </button>
       </form>

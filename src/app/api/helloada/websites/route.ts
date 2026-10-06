@@ -2,11 +2,9 @@ import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 
 import { currentUser } from '@/lib/auth'
+import { isBootstrapStatus, isBootstrapStep } from '@/lib/bootstrap-contract'
 import { tenantAdminUrl } from '@/lib/tenant-admin'
 import { registerWebsiteTenant, startWebsiteBootstrap } from '@/lib/website'
-
-const validSteps = new Set(['requested', 'creating_repository', 'creating_data', 'creating_worker', 'queueing_shell_release', 'deploying_shell', 'ready', 'needs_attention'])
-const validStatuses = new Set(['queued', 'running', 'awaiting_release', 'done', 'failed'])
 
 function slugify(value: string) {
   const base = value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -129,12 +127,12 @@ export async function POST(request: Request) {
     website_live?: boolean
     resource_receipts?: Record<string, unknown>
   }
-  const remoteStep = String(bootstrap.step || '')
-  const remoteStatus = String(bootstrap.status || '')
+  const remoteStep = bootstrap.step
+  const remoteStatus = bootstrap.status
   const contractValid = bootstrapResponse.ok
     && bootstrap.tenant_id === identity.tenantId
-    && validSteps.has(remoteStep)
-    && validStatuses.has(remoteStatus)
+    && isBootstrapStep(remoteStep)
+    && isBootstrapStatus(remoteStatus)
     && typeof bootstrap.workspace_ready === 'boolean'
     && typeof bootstrap.website_live === 'boolean'
   if (!contractValid) {
