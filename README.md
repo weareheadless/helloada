@@ -1,14 +1,13 @@
 # HelloAda
 
-The central HelloAda account and multi-website control-plane shell.
+The authenticated multi-website portfolio and project selector.
 
-This app intentionally uses Payload's existing authentication model and keeps
-customer website records isolated by owner. A website creation records the
-durable bootstrap job and asks the shared site-agent control plane to register
-and asynchronously bootstrap an isolated Next/React/Payload tenant. The room
-displays durable progress, hands the owner into the managed workspace once the
-Worker is healthy, confirms the intake brief, requests a read-only direction,
-and approves the next owner recommendation.
+Owners choose an existing website or explicitly create a new one. Creating a
+website registers one canonical site-agent tenant and starts its Payload
+workspace bootstrap. Once the exact tenant admin is ready, HelloAda uses a
+short-lived, single-use owner-session handoff. Intake, Ada, content, design,
+growth and review then live in that tenant's Payload admin. A ready admin shell
+is not a launched public website.
 
 ## Local development
 
@@ -31,10 +30,17 @@ environment credential.
 ## Checks
 
 ```bash
+npm ci
+npm test
+npm run lint
 npm run typecheck
 npm run build
+PAYLOAD_LOCAL_BUILD=1 PAYLOAD_SECRET=local-build-only-secret-with-32-characters-or-more npx opennextjs-cloudflare build
 ```
 
-The central app is not the full WebsiteWorkspace. It owns the portfolio,
-intake/build room, bootstrap progress, and handoff entry; the existing customer
-workspace remains the full admin surface.
+Pull requests and pushes to `main` run these checks in GitHub Actions. CI uses
+local Cloudflare bindings and never deploys or reads production secrets. The
+customer Worker release remains a separate, exact-commit request through the
+site-agent VPS queue; HelloAda's own production release must use its explicitly
+configured Cloudflare release path and must not be inferred from a passing CI
+run.
