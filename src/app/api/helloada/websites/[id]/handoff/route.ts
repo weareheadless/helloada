@@ -9,8 +9,12 @@ import { ownedWebsite, websiteBootstrapStatus } from '@/lib/website'
 export const dynamic = 'force-dynamic'
 
 const noStore = { 'cache-control': 'no-store, max-age=0', 'referrer-policy': 'no-referrer' }
+const HELLOADA_ORIGIN = 'https://helloada.app'
 
-export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (request.headers.get('origin') !== HELLOADA_ORIGIN) {
+    return NextResponse.json({ error: 'origin_invalid' }, { status: 403, headers: noStore })
+  }
   const auth = await currentUser(await headers())
   if (!auth) return NextResponse.json({ error: 'authentication_required' }, { status: 401, headers: noStore })
 
