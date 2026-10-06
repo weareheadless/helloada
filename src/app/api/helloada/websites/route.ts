@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 
 import { currentUser } from '@/lib/auth'
+import { tenantAdminUrl } from '@/lib/tenant-admin'
 import { registerWebsiteTenant, startWebsiteBootstrap } from '@/lib/website'
 
-const validSteps = new Set(['requested', 'creating_repository', 'creating_worker', 'creating_data', 'deploying_shell', 'ready', 'needs_attention'])
+const validSteps = new Set(['requested', 'creating_repository', 'creating_data', 'creating_worker', 'queueing_shell_release', 'deploying_shell', 'ready', 'needs_attention'])
 const validStatuses = new Set(['queued', 'running', 'awaiting_release', 'done', 'failed'])
 
 function slugify(value: string) {
@@ -125,6 +126,7 @@ export async function POST(request: Request) {
     step?: string
     diagnostic?: string
     workspace_ready?: boolean
+    website_live?: boolean
     resource_receipts?: Record<string, unknown>
   }
   const remoteStep = String(bootstrap.step || '')
@@ -134,6 +136,7 @@ export async function POST(request: Request) {
     && validSteps.has(remoteStep)
     && validStatuses.has(remoteStatus)
     && typeof bootstrap.workspace_ready === 'boolean'
+    && typeof bootstrap.website_live === 'boolean'
   if (!contractValid) {
     const diagnostic = bootstrapResponse.ok
       ? 'Site-agent returned an invalid bootstrap contract.'
@@ -155,6 +158,19 @@ export async function POST(request: Request) {
 
   const workerReceipt = bootstrap.resource_receipts?.creating_worker as { worker_url?: string } | undefined
   const workerUrl = String(workerReceipt?.worker_url || '')
+  const adminUrl = bootstrap.workspace_ready
+    ? tenantAdminUrl(workerUrl ? workerUrl.replace(/\/$/, '') + '/admin' : null)
+    : null
+  if (bootstrap.workspace_ready && !adminUrl) {
+    await auth.payload.update({
+      collection: 'bootstrap-jobs',
+      id: bootstrapJob.id,
+      req: auth.req,
+      data: { step: 'needs_attention', status: 'failed', diagnostic: 'Verified admin origin is missing.' },
+    })
+    return NextResponse.json({ id: website.id, error: 'verified_admin_origin_missing' }, { status: 502 })
+  }
+
   const failed = remoteStatus === 'failed'
   await auth.payload.update({
     collection: 'bootstrap-jobs',
@@ -165,7 +181,6 @@ export async function POST(request: Request) {
       status: failed ? 'failed' : remoteStatus === 'done' ? 'done' : 'running',
       resourceReceipts: {
         tenant: { tenantId: identity.tenantId, schemaVersion: registration.schema_version || null },
-        bootstrap: bootstrap.resource_receipts || {},
       },
       diagnostic: String(bootstrap.diagnostic || '').slice(0, 500),
     },
@@ -177,14 +192,13 @@ export async function POST(request: Request) {
     data: {
       phase: failed ? 'needs_attention' : 'intake',
       workerUrl: workerUrl || undefined,
-      adminUrl: bootstrap.workspace_ready && workerUrl ? workerUrl.replace(/\/$/, '') + '/admin' : undefined,
+      adminUrl: adminUrl || undefined,
     },
   })
 
   return NextResponse.json({
     id: website.id,
     phase: failed ? 'needs_attention' : 'intake',
-    tenantId: identity.tenantId,
     bootstrapJobId: bootstrapJob.id,
     bootstrapStatus: remoteStatus,
   }, { status: 201 })
