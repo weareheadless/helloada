@@ -26,6 +26,7 @@ export const BootstrapJobs: CollectionConfig = {
         { label: 'Creating repository', value: 'creating_repository' },
         { label: 'Creating Worker', value: 'creating_worker' },
         { label: 'Creating data', value: 'creating_data' },
+        { label: 'Queueing shell release', value: 'queueing_shell_release' },
         { label: 'Deploying shell', value: 'deploying_shell' },
         { label: 'Ready', value: 'ready' },
         { label: 'Needs attention', value: 'needs_attention' },
@@ -38,6 +39,7 @@ export const BootstrapJobs: CollectionConfig = {
       options: [
         { label: 'Queued', value: 'queued' },
         { label: 'Running', value: 'running' },
+        { label: 'Awaiting release', value: 'awaiting_release' },
         { label: 'Done', value: 'done' },
         { label: 'Failed', value: 'failed' },
       ],

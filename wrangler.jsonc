@@ -12,6 +12,9 @@
     "NEXT_PUBLIC_SITE_URL": "https://helloada.app",
     "SITE_AGENT_URL": "https://api.helloada.app/v1"
   },
+  "secrets": {
+    "required": ["HELLOADA_HANDOFF_PRIVATE_KEY"]
+  },
   "d1_databases": [
     {
       "binding": "D1",
