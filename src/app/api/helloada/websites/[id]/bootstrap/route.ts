@@ -8,23 +8,15 @@ import { ownedWebsite, startWebsiteBootstrap, websiteBootstrapStatus } from '@/l
 const stepLabels: Record<string, string> = {
   requested: 'Opening your workspace',
   creating_repository: 'Preparing the website',
-  creating_worker: 'Connecting the website services',
   creating_data: 'Preparing private website data',
+  creating_worker: 'Connecting the website services',
+  queueing_shell_release: 'Making the Payload admin ready',
   deploying_shell: 'Making the Payload admin ready',
   ready: 'Your Payload admin is ready',
   needs_attention: 'Workspace needs attention',
 }
 const validSteps = new Set(Object.keys(stepLabels))
 const validStatuses = new Set(['queued', 'running', 'awaiting_release', 'done', 'failed'])
-const sensitiveKey = /(secret|token|password|credential|api[_-]?key)/i
-
-function publicReceipt(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(publicReceipt)
-  if (!value || typeof value !== 'object') return value
-  return Object.fromEntries(
-    Object.entries(value).flatMap(([key, item]) => sensitiveKey.test(key) ? [] : [[key, publicReceipt(item)]]),
-  )
-}
 
 function workerUrlFrom(receipts: Record<string, unknown>) {
   const worker = receipts.creating_worker
@@ -37,6 +29,18 @@ function localRegistrationFailure(job: Record<string, unknown> | undefined) {
   if (job?.status !== 'failed') return false
   const receipts = job.resourceReceipts
   return !receipts || typeof receipts !== 'object' || !('tenant' in receipts)
+}
+
+function receiptAdminUrl(workerUrl: string | null) {
+  if (!workerUrl) return null
+  return tenantAdminUrl(workerUrl.replace(/\/$/, '') + '/admin')
+}
+
+function verifiedAdminUrl(websiteUrl: unknown, workerUrl: string | null) {
+  const fromReceipt = receiptAdminUrl(workerUrl)
+  const recorded = tenantAdminUrl(websiteUrl)
+  if (recorded && fromReceipt && recorded !== fromReceipt) return null
+  return fromReceipt
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -68,7 +72,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
           step: 'needs_attention',
           label: stepLabels.needs_attention,
           workspaceReady: false,
-          diagnostic: String(job?.diagnostic || ''),
         },
       }, { headers: { 'cache-control': 'no-store' } })
     }
@@ -81,19 +84,23 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
   const status = String(remote.status || '')
   const step = String(remote.step || '')
-  if (!validStatuses.has(status) || !validSteps.has(step) || typeof remote.workspace_ready !== 'boolean') {
-    return NextResponse.json({ error: 'site_agent_status_contract_invalid', status, step }, { status: 502 })
+  if (
+    remote.tenant_id !== website.tenantId
+    || !validStatuses.has(status)
+    || !validSteps.has(step)
+    || typeof remote.workspace_ready !== 'boolean'
+    || typeof remote.website_live !== 'boolean'
+  ) {
+    return NextResponse.json({ error: 'site_agent_status_contract_invalid' }, { status: 502 })
   }
   const receipts = remote.resource_receipts && typeof remote.resource_receipts === 'object'
     ? remote.resource_receipts as Record<string, unknown>
     : {}
   const workerUrl = workerUrlFrom(receipts)
   const workspaceReady = remote.workspace_ready === true
-  const adminUrl = workspaceReady
-    ? tenantAdminUrl(website.adminUrl || (workerUrl ? workerUrl.replace(/\/$/, '') + '/admin' : null))
-    : null
+  const adminUrl = workspaceReady ? verifiedAdminUrl(website.adminUrl, workerUrl) : null
   if (workspaceReady && !adminUrl) {
-    return NextResponse.json({ error: 'verified_admin_origin_missing' }, { status: 502 })
+    return NextResponse.json({ error: 'verified_admin_origin_missing_or_mismatched' }, { status: 502 })
   }
 
   if (workspaceReady && adminUrl) {
@@ -112,9 +119,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     website: {
       id: website.id,
       phase: website.phase,
-      workerUrl,
       adminUrl,
-      tenantId: website.tenantId,
     },
     bootstrap: {
       id: job?.id || null,
@@ -122,10 +127,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       step,
       label: stepLabels[step],
       workspaceReady,
-      websiteLive: remote.website_live === true,
+      websiteLive: remote.website_live,
       retries: Number(job?.retries || 0),
-      diagnostic: String(remote.diagnostic || job?.diagnostic || ''),
-      resourceReceipts: publicReceipt(receipts),
       updatedAt: remote.updated_at || job?.updatedAt || null,
     },
   }, { headers: { 'cache-control': 'no-store' } })
@@ -156,12 +159,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const response = await startWebsiteBootstrap(String(website.tenantId), String(website.name || website.tenantId))
   const state = await response.json().catch(() => null) as Record<string, unknown> | null
   if (!response.ok || !state) {
-    const diagnostic = String(state?.detail || state?.diagnostic || 'The canonical bootstrap could not be resumed.').slice(0, 500)
     await auth.payload.update({
       collection: 'bootstrap-jobs',
       id: job.id,
       req: auth.req,
-      data: { step: 'needs_attention', status: 'failed', retries: Number(job.retries || 0) + 1, diagnostic },
+      data: { step: 'needs_attention', status: 'failed', retries: Number(job.retries || 0) + 1 },
     })
     return NextResponse.json({ error: 'bootstrap_retry_failed' }, { status: 502 })
   }
@@ -172,6 +174,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     || !validStatuses.has(status)
     || !validSteps.has(step)
     || typeof state.workspace_ready !== 'boolean'
+    || typeof state.website_live !== 'boolean'
   ) {
     return NextResponse.json({ error: 'site_agent_status_contract_invalid' }, { status: 502 })
   }
@@ -179,6 +182,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     ? state.resource_receipts as Record<string, unknown>
     : {}
   const workerUrl = workerUrlFrom(receipts)
+  const adminUrl = state.workspace_ready === true ? verifiedAdminUrl(website.adminUrl, workerUrl) : null
+  if (state.workspace_ready === true && !adminUrl) {
+    return NextResponse.json({ error: 'verified_admin_origin_missing_or_mismatched' }, { status: 502 })
+  }
   const failed = status === 'failed'
   await auth.payload.update({
     collection: 'bootstrap-jobs',
@@ -188,8 +195,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       step,
       status: failed ? 'failed' : status === 'done' ? 'done' : 'running',
       retries: Number(job.retries || 0) + 1,
-      resourceReceipts: publicReceipt(receipts),
-      diagnostic: String(state.diagnostic || '').slice(0, 500),
+      diagnostic: '',
     },
   })
   await auth.payload.update({
@@ -199,7 +205,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     data: {
       phase: failed ? 'needs_attention' : 'intake',
       workerUrl: workerUrl || undefined,
-      adminUrl: state.workspace_ready === true && workerUrl ? tenantAdminUrl(workerUrl.replace(/\/$/, '') + '/admin') || undefined : undefined,
+      adminUrl: adminUrl || undefined,
     },
   })
   return NextResponse.json({ ok: true, status, step }, { status: status === 'done' ? 200 : 202 })
