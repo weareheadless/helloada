@@ -38,9 +38,25 @@ npm run build
 PAYLOAD_LOCAL_BUILD=1 PAYLOAD_SECRET=local-build-only-secret-with-32-characters-or-more npx opennextjs-cloudflare build
 ```
 
-Pull requests and pushes to `main` run these checks in GitHub Actions. CI uses
-local Cloudflare bindings and never deploys or reads production secrets. The
-customer Worker release remains a separate, exact-commit request through the
-site-agent VPS queue; HelloAda's own production release must use its explicitly
-configured Cloudflare release path and must not be inferred from a passing CI
-run.
+Pull requests and pushes to `main` run these checks in GitHub Actions with the
+same Node/npm versions as the VPS release toolchain. CI uses local Cloudflare
+bindings and never deploys or reads production secrets.
+
+## Production release
+
+HelloAda and customer Workers are both released by the exact-commit Site-Agent
+VPS pipeline. A reviewed HelloAda change must be merged to
+`weareheadless/helloada` first. Site-Agent then records its full immutable
+commit SHA and a unique release ID in
+`deploy/desired-helloada-app-release.json`. The VPS verifies that SHA is on
+HelloAda's official `main`, installs the lockfile, runs every CI check, builds
+and inspects the OpenNext artifact, uploads one immutable Worker version,
+promotes exactly that version, and requires `/api/health` to report the same
+SHA. Its protected receipt is stored under
+`/SOCIAL/payload-releases/runs/helloada-app/<release-id>/receipt.json`.
+
+Do not use `wrangler deploy` or treat a green CI run as a production release.
+The central pipeline injects the owner-handoff private key only during the
+HelloAda Worker upload; the key never belongs in Git, a client bundle, or build
+environment. See `docs/owner-session-handoff.md` in Site-Agent for key custody
+and rotation rules.
