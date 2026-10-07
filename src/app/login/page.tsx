@@ -1,13 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { FormEvent, useState } from 'react'
 
 import { BrandLink } from '@/components/brand-link'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -17,17 +15,29 @@ export default function LoginPage() {
     event.preventDefault()
     setBusy(true)
     setError('')
-    const response = await fetch('/api/users/login', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
-    if (!response.ok) {
-      setError('That sign-in did not work. Check the email and password and try again.')
+    try {
+      const response = await fetch('/api/users/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      if (!response.ok) {
+        setError('That sign-in did not work. Check the email and password and try again.')
+        setBusy(false)
+        return
+      }
+      const requestedPath = new URLSearchParams(window.location.search).get('next')
+      const safePath = requestedPath && requestedPath.startsWith('/') && !requestedPath.startsWith('//')
+        ? new URL(requestedPath, window.location.origin)
+        : null
+      const destination = safePath?.origin === window.location.origin
+        ? `${safePath.pathname}${safePath.search}${safePath.hash}`
+        : '/portfolio'
+      window.location.assign(destination)
+    } catch {
+      setError('HelloAda could not finish signing in. Check your connection and try again.')
       setBusy(false)
-      return
     }
-    router.push('/portfolio')
   }
 
   return (
