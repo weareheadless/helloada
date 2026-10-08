@@ -27,6 +27,15 @@ Local builds use Wrangler's local bindings by default. Set
 Cloudflare binding and have authenticated Wrangler with a short-lived local
 environment credential.
 
+Password recovery uses Payload's native `forgot-password` and `reset-password`
+operations with Cloudflare Email Service. The `helloada.app` sending domain must
+be onboarded in Cloudflare Email Service and the account must use Workers Paid
+before a production release; the Worker has a sender-restricted `EMAIL` binding
+and sends reset links from `helloada@helloada.app`. The reset token is carried
+in the URL fragment so it is not sent in HTTP requests. Do not release or claim
+recovery is active until the sending domain is verified and a live delivery test
+has succeeded.
+
 ## Checks
 
 ```bash

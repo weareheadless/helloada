@@ -10,8 +10,15 @@
   },
   "vars": {
     "NEXT_PUBLIC_SITE_URL": "https://helloada.app",
-    "SITE_AGENT_URL": "https://api.helloada.app/v1"
+    "SITE_AGENT_URL": "https://api.helloada.app/v1",
+    "EMAIL_FROM_ADDRESS": "helloada@helloada.app"
   },
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "allowed_sender_addresses": ["helloada@helloada.app"]
+    }
+  ],
   "secrets": {
     "required": ["HELLOADA_HANDOFF_PRIVATE_KEY"]
   },

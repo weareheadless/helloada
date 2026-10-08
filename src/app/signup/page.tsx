@@ -50,7 +50,7 @@ export default function SignupPage() {
         <form onSubmit={submit}>
           <div className="field"><label htmlFor="name">Name</label><input id="name" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} /></div>
           <div className="field"><label htmlFor="email">Email</label><input id="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></div>
-          <div className="field"><label htmlFor="password">Password</label><input id="password" type="password" autoComplete="new-password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} required /></div>
+          <div className="field"><label htmlFor="password">Password</label><input id="password" type="password" autoComplete="new-password" minLength={12} value={password} onChange={(event) => setPassword(event.target.value)} required /></div>
           {error && <p className="auth-error" role="alert">{error}</p>}
           <button className="button button-primary" type="submit" disabled={busy}>{busy ? 'Opening…' : 'Create account'} <span>→</span></button>
         </form>

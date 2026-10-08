@@ -49,7 +49,13 @@ export default function LoginPage() {
         <p>Your websites and Ada’s next recommendations are waiting in one place.</p>
         <form onSubmit={submit}>
           <div className="field"><label htmlFor="email">Email</label><input id="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></div>
-          <div className="field"><label htmlFor="password">Password</label><input id="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></div>
+          <div className="field">
+            <div className="auth-field-heading">
+              <label htmlFor="password">Password</label>
+              <Link href="/forgot-password">Forgot password?</Link>
+            </div>
+            <input id="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+          </div>
           {error && <p className="auth-error" role="alert">{error}</p>}
           <button className="button button-primary" type="submit" disabled={busy}>{busy ? 'Opening…' : 'Open HelloAda'} <span>→</span></button>
         </form>

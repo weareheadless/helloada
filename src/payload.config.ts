@@ -15,6 +15,7 @@ import { Operations } from './collections/Operations'
 import { Revisions } from './collections/Revisions'
 import { Users } from './collections/Users'
 import { Websites } from './collections/Websites'
+import { cloudflareEmailAdapter, type CloudflareSendEmailBinding } from './lib/cloudflare-email'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -55,6 +56,10 @@ export default buildConfig({
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },
   i18n: { fallbackLanguage: 'en', supportedLanguages: translations },
   db: sqliteD1Adapter({ binding: cloudflare.env.D1 }),
+  email: cloudflareEmailAdapter(
+    cloudflare.env.EMAIL as CloudflareSendEmailBinding,
+    String(cloudflare.env.EMAIL_FROM_ADDRESS || ''),
+  ),
   plugins: [
     r2Storage({
       bucket: cloudflare.env.R2,
