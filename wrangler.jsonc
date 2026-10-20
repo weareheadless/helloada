@@ -8,6 +8,7 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "browser": { "binding": "BROWSER" },
   "vars": {
     "NEXT_PUBLIC_SITE_URL": "https://helloada.app",
     "SITE_AGENT_URL": "https://api.helloada.app/v1"

@@ -1,4 +1,5 @@
 import type { Payload, PayloadRequest, TypedUser, Where } from 'payload'
+import { websiteScope } from './platform-admin.ts'
 
 const removedPrefix = 'helloada.portfolio.removed.'
 type PortfolioAuth = { payload: Payload; req: Partial<PayloadRequest>; user: TypedUser }
@@ -34,7 +35,7 @@ export async function setWebsiteRemoved(auth: PortfolioAuth, websiteId: number, 
     collection: 'websites',
     req: auth.req,
     overrideAccess: false,
-    where: { and: [{ id: { equals: websiteId } }, { owner: { equals: auth.user.id } }] },
+    where: { and: [{ id: { equals: websiteId } }, websiteScope(auth.user)] },
     limit: 1,
     depth: 0,
   })

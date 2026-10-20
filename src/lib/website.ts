@@ -1,14 +1,16 @@
 import type { currentUser } from './auth'
+import { websiteScope } from './platform-admin.ts'
 
 export async function ownedWebsite(auth: Awaited<ReturnType<typeof currentUser>>, id: string) {
   if (!auth) return null
   const result = await auth.payload.find({
     collection: 'websites',
     req: auth.req,
+    overrideAccess: false,
     where: {
       and: [
         { id: { equals: id } },
-        { owner: { equals: auth.user.id } },
+        websiteScope(auth.user),
       ],
     },
     limit: 1,

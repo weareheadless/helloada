@@ -74,3 +74,22 @@ Visibility uses one owner-scoped Payload preference per website, with key
 The portfolio endpoint checks same-origin requests, authentication and website
 ownership, and explicitly enables Payload access checks for all preference reads
 and writes. Removal does not call the workspace/bootstrap service.
+
+## Platform administrator and screenshot cards
+
+The deployment-controlled administrator list pins a user's ID, email and account
+creation timestamp. Signup and profile fields cannot grant this access; reserved
+administrator email addresses cannot be reclaimed through public signup or an
+ordinary profile update. Normal users can read and change only their own user
+account and websites. Administrators can read all accounts for owner labels and
+open all websites through the existing authenticated, tenant-verified handoff.
+Handoffs use the administrator's own subject, preserving a distinct identity.
+Portfolio removal remains a personal visibility preference for administrators.
+
+Website cards load an authenticated screenshot endpoint. The endpoint checks
+website access, resolves a live managed Worker origin from the canonical bootstrap
+receipt, and captures its public home page through the BROWSER binding. It sends
+no owner cookies or private tokens to the browser. Screenshots are cached privately
+in the existing R2 bucket for 24 hours, replacing the same key on refresh. Browser
+navigation is restricted to the verified origin. Unbuilt sites and capture errors
+have explicit unavailable states; no stock image is presented as a screenshot.
