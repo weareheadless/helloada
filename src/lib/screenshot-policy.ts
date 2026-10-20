@@ -14,6 +14,16 @@ export function verifiedScreenshotOrigin(candidate: unknown, health: Record<stri
   return managedScreenshotOrigin(candidate)
 }
 
+export async function liveScreenshotOrigin(candidate: unknown, tenantId: string, fetcher: typeof fetch = fetch): Promise<string | null> {
+  const origin = managedScreenshotOrigin(candidate)
+  if (!origin) return null
+  // Workers supports manual/follow, not the browser-only redirect:error mode.
+  const response = await fetcher(origin + '/api/health', {
+    cache: 'no-store', redirect: 'manual', signal: AbortSignal.timeout(10_000),
+  })
+  return response.ok ? verifiedScreenshotOrigin(origin, await response.json().catch(() => null), tenantId) : null
+}
+
 export function screenshotRequestAllowed(candidate: string, origin: string, navigation: boolean): boolean {
   try {
     const url = new URL(candidate)
@@ -32,18 +42,28 @@ export interface ScreenshotBucket {
 }
 
 const pending = new Map<string, Promise<ArrayBuffer>>()
+let captureQueue: Promise<unknown> = Promise.resolve()
+let lastCaptureStart = 0
+
+export async function captureWithBrowserCleanup(capture: () => Promise<Uint8Array>, close: () => Promise<void>) {
+  try { return await capture() } finally { await close() }
+}
 
 export async function cachedScreenshot(bucket: ScreenshotBucket, key: string, capture: () => Promise<Uint8Array>): Promise<ArrayBuffer> {
   const cached = await bucket.get(key)
   if (cached && Date.now() - cached.uploaded.getTime() < 86_400_000) return cached.arrayBuffer()
   const existing = pending.get(key)
   if (existing) return existing
-  const job = (async () => {
+  const job = captureQueue.then(async () => {
+    const delay = 1100 - (Date.now() - lastCaptureStart)
+    if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay))
+    lastCaptureStart = Date.now()
     const bytes = await capture()
     if (!bytes.byteLength || bytes.byteLength > 5_000_000) throw new Error('screenshot_invalid')
     await bucket.put(key, bytes, { httpMetadata: { contentType: 'image/jpeg' } })
     return Uint8Array.from(bytes).buffer
-  })()
+  })
+  captureQueue = job.catch(() => {})
   pending.set(key, job)
   try { return await job } finally { pending.delete(key) }
 }
