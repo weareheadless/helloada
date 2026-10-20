@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation'
 
 import { BrandLink } from '@/components/brand-link'
 import { currentUser } from '@/lib/auth'
-import { CreateWebsiteForm } from './ui'
+import { removedWebsiteIds } from '@/lib/portfolio'
+import { CreateWebsiteForm, WebsiteVisibility } from './ui'
 
 const phaseLabels: Record<string, string> = {
   intake: 'Getting started',
@@ -23,6 +24,9 @@ export default async function PortfolioPage() {
     sort: '-updatedAt',
     pagination: false,
   })
+  const removedIds = await removedWebsiteIds(auth)
+  const visibleWebsites = websites.docs.filter((website) => !removedIds.has(String(website.id)))
+  const removedWebsites = websites.docs.filter((website) => removedIds.has(String(website.id)))
 
   return (
     <main className="app-shell">
@@ -36,22 +40,37 @@ export default async function PortfolioPage() {
           <p>Choose a website to open its admin, or create a new one. Ada will prepare the workspace and guide you from there.</p>
         </div>
         <section className="site-grid" aria-label="Your websites">
-          {websites.docs.length === 0 ? (
+          {visibleWebsites.length === 0 ? (
             <div className="empty-card">Your websites will appear here. Create one to get started with Ada.</div>
-          ) : websites.docs.map((website) => {
+          ) : visibleWebsites.map((website) => {
             const phase = String(website.phase || 'intake')
             return (
-              <Link className="site-card" key={website.id} href={'/websites/' + website.id}>
-                <div>
-                  <span className="site-phase">{phaseLabels[phase] || 'In progress'}</span>
-                  <h2>{website.name}</h2>
-                </div>
-                <span className="site-url">Open website admin <span aria-hidden="true">↗</span></span>
-              </Link>
+              <article className="site-card" key={website.id}>
+                <Link className="site-card-link" href={'/websites/' + website.id}>
+                  <div>
+                    <span className="site-phase">{phaseLabels[phase] || 'In progress'}</span>
+                    <h2>{website.name}</h2>
+                  </div>
+                  <span className="site-url">Open website admin <span aria-hidden="true">↗</span></span>
+                </Link>
+                <WebsiteVisibility id={String(website.id)} name={website.name} removed={false} />
+              </article>
             )
           })}
         </section>
         <CreateWebsiteForm />
+        {removedWebsites.length > 0 && (
+          <details className="removed-websites">
+            <summary>Removed websites ({removedWebsites.length})</summary>
+            <p>Restore a website to return it to your portfolio.</p>
+            {removedWebsites.map((website) => (
+              <div className="removed-website" key={website.id}>
+                <span>{website.name}</span>
+                <WebsiteVisibility id={String(website.id)} name={website.name} removed />
+              </div>
+            ))}
+          </details>
+        )}
       </div>
     </main>
   )

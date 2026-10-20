@@ -60,3 +60,17 @@ The central pipeline injects the owner-handoff private key only during the
 HelloAda Worker upload; the key never belongs in Git, a client bundle, or build
 environment. See `docs/owner-session-handoff.md` in Site-Agent for key custody
 and rotation rules.
+
+## Portfolio removal
+
+Every website card offers **Remove from portfolio**, including websites whose
+workspace bootstrap failed. Owners confirm the action inline. Removed entries
+appear in **Removed websites** and can be restored without changing their
+lifecycle, tenant, content or hosted resources. This is reversible portfolio
+visibility, not tenant deprovisioning or permanent deletion.
+
+Visibility uses one owner-scoped Payload preference per website, with key
+`helloada.portfolio.removed.<website-id>`. No database schema change is required.
+The portfolio endpoint checks same-origin requests, authentication and website
+ownership, and explicitly enables Payload access checks for all preference reads
+and writes. Removal does not call the workspace/bootstrap service.

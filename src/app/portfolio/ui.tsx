@@ -5,6 +5,52 @@ import { useRouter } from 'next/navigation'
 
 const pendingKeyStorage = 'helloada.pendingWebsiteCreation'
 
+export function WebsiteVisibility({ id, name, removed }: { id: string; name: string; removed: boolean }) {
+  const router = useRouter()
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function save() {
+    if (busy) return
+    setBusy(true)
+    setError('')
+    try {
+      const response = await fetch('/api/helloada/websites/' + encodeURIComponent(id) + '/portfolio', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ removed: !removed }),
+      })
+      if (!response.ok) throw new Error('visibility_update_failed')
+      router.refresh()
+      setConfirming(false)
+    } catch {
+      setError('The portfolio could not be updated. Please try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="website-visibility">
+      {confirming ? (
+        <div className="remove-confirmation" role="group" aria-label={'Remove ' + name + ' from portfolio'}>
+          <p>Remove <strong>{name}</strong> from your portfolio? You can restore it from Removed websites. Its content is kept, and any hosted website stays online.</p>
+          <div className="website-actions">
+            <button className="portfolio-action" onClick={() => void save()} disabled={busy}>{busy ? 'Removing…' : 'Confirm removal'}</button>
+            <button className="portfolio-action" onClick={() => { setConfirming(false); setError('') }} disabled={busy}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button className="portfolio-action" disabled={busy} aria-label={(removed ? 'Restore ' : 'Remove ') + name + (removed ? ' to portfolio' : ' from portfolio')} onClick={() => removed ? void save() : setConfirming(true)}>
+          {busy ? 'Restoring…' : removed ? 'Restore to portfolio' : 'Remove from portfolio'}
+        </button>
+      )}
+      {error && <p className="auth-error" role="alert">{error}</p>}
+    </div>
+  )
+}
+
 export function CreateWebsiteForm() {
   const router = useRouter()
   const [name, setName] = useState('')
