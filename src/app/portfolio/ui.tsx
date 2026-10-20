@@ -5,6 +5,23 @@ import { useRouter } from 'next/navigation'
 
 const pendingKeyStorage = 'helloada.pendingWebsiteCreation'
 
+export function WebsiteScreenshot({ id, name, available }: { id: string; name: string; available: boolean }) {
+  const [failed, setFailed] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [attempt, setAttempt] = useState(0)
+  return (
+    <div className="site-screenshot">
+      {available && !failed && (
+        // This authenticated image endpoint serves a real, cached browser capture.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={'/api/helloada/websites/' + encodeURIComponent(id) + '/screenshot?attempt=' + attempt} alt={'Screenshot of ' + name} loading="lazy" width={1280} height={800} onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />
+      )}
+      {(!available || failed || !loaded) && <span className="screenshot-status">{!available ? 'Preview not available yet' : failed ? 'Preview unavailable' : 'Preparing screenshot…'}</span>}
+      {available && failed && <button type="button" className="screenshot-retry" onClick={(event) => { event.preventDefault(); setFailed(false); setLoaded(false); setAttempt(attempt + 1) }}>Retry preview</button>}
+    </div>
+  )
+}
+
 export function WebsiteVisibility({ id, name, removed }: { id: string; name: string; removed: boolean }) {
   const router = useRouter()
   const [confirming, setConfirming] = useState(false)

@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 
 import { currentUser } from '@/lib/auth'
+import { websiteScope } from '@/lib/platform-admin'
 import { ProjectEntry } from '@/app/websites/[id]/project-entry'
 
 export const dynamic = 'force-dynamic'
@@ -17,9 +18,10 @@ export default async function AdminEntryPage({ params }: { params: Promise<{ ten
   const websites = await auth.payload.find({
     collection: 'websites',
     req: auth.req,
+    overrideAccess: false,
     where: {
       and: [
-        { owner: { equals: auth.user.id } },
+        websiteScope(auth.user),
         { tenantId: { equals: tenantId } },
       ],
     },
