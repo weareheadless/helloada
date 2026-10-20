@@ -14,7 +14,12 @@ export function WebsiteScreenshot({ id, name, available }: { id: string; name: s
       {available && !failed && (
         // This authenticated image endpoint serves a real, cached browser capture.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={'/api/helloada/websites/' + encodeURIComponent(id) + '/screenshot?attempt=' + attempt} alt={'Screenshot of ' + name} loading="lazy" width={1280} height={800} onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />
+        <img ref={(image) => {
+          if (image?.complete) {
+            if (image.naturalWidth > 0 && !loaded) setLoaded(true)
+            else if (image.naturalWidth === 0 && !failed) setFailed(true)
+          }
+        }} src={'/api/helloada/websites/' + encodeURIComponent(id) + '/screenshot?attempt=' + attempt} alt={'Screenshot of ' + name} loading="lazy" width={1280} height={800} onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />
       )}
       {(!available || failed || !loaded) && <span className="screenshot-status">{!available ? 'Preview not available yet' : failed ? 'Preview unavailable' : 'Preparing screenshot…'}</span>}
       {available && failed && <button type="button" className="screenshot-retry" onClick={(event) => { event.preventDefault(); setFailed(false); setLoaded(false); setAttempt(attempt + 1) }}>Retry preview</button>}
