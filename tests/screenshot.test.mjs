@@ -7,6 +7,7 @@ const health = { ok: true, service: 'helloada-site', tenant: 'example' }
 
 test('capture verifies the live Worker identity rather than stale bootstrap publication flags', () => {
   assert.equal(verifiedScreenshotOrigin(origin, health, 'example'), origin)
+  assert.equal(verifiedScreenshotOrigin('https://shop.example.com', health, 'example'), 'https://shop.example.com')
   for (const value of [null, { ...health, tenant: 'other' }, { ...health, ok: false }, { ...health, service: 'other' }]) {
     assert.equal(verifiedScreenshotOrigin(origin, value, 'example'), null)
   }

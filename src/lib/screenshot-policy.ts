@@ -3,7 +3,8 @@ export function managedScreenshotOrigin(candidate: unknown): string | null {
   try {
     const url = new URL(candidate)
     if (url.protocol !== 'https:' || url.username || url.password || url.port
-      || !/^[a-z0-9-]+\.weareheadless\.workers\.dev$/.test(url.hostname)) return null
+      || !/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z][a-z0-9-]{1,62}$/.test(url.hostname)
+      || !screenshotRequestAllowed(url.origin, url.origin, false)) return null
     return url.origin
   } catch { return null }
 }
@@ -21,7 +22,7 @@ export function screenshotRequestAllowed(candidate: string, origin: string, navi
     if (url.protocol !== 'https:' || url.username || url.password) return false
     const hostname = url.hostname.toLowerCase()
     return hostname.includes('.') && !/[\[\]:]/.test(hostname) && !/^[\d.]+$/.test(hostname)
-      && !/(^|\.)(localhost|local|internal|test|invalid)$/.test(hostname)
+      && !/(^|\.)(localhost|local|lan|home|internal|test|invalid|example|onion|arpa)$/.test(hostname)
   } catch { return false }
 }
 
