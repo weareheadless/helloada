@@ -33,6 +33,10 @@ export interface ScreenshotBucket {
 
 const pending = new Map<string, Promise<ArrayBuffer>>()
 
+export async function captureWithBrowserCleanup(capture: () => Promise<Uint8Array>, close: () => Promise<void>) {
+  try { return await capture() } finally { await close() }
+}
+
 export async function cachedScreenshot(bucket: ScreenshotBucket, key: string, capture: () => Promise<Uint8Array>): Promise<ArrayBuffer> {
   const cached = await bucket.get(key)
   if (cached && Date.now() - cached.uploaded.getTime() < 86_400_000) return cached.arrayBuffer()

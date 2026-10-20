@@ -1,9 +1,28 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { cachedScreenshot, verifiedScreenshotOrigin, screenshotRequestAllowed } from '../src/lib/screenshot-policy.ts'
+import { cachedScreenshot, captureWithBrowserCleanup, verifiedScreenshotOrigin, screenshotRequestAllowed } from '../src/lib/screenshot-policy.ts'
 
 const origin = 'https://helloada-example.weareheadless.workers.dev'
 const health = { ok: true, service: 'helloada-site', tenant: 'example' }
+
+test('the browser stays open until the screenshot promise resolves', async () => {
+  let finish
+  let closed = false
+  const image = new Uint8Array([1, 2, 3])
+  const pendingImage = new Promise((resolve) => { finish = resolve })
+  const result = captureWithBrowserCleanup(() => pendingImage, async () => { closed = true })
+  await Promise.resolve()
+  assert.equal(closed, false)
+  finish(image)
+  assert.equal(await result, image)
+  assert.equal(closed, true)
+})
+
+test('a failed screenshot also closes its browser', async () => {
+  let closed = false
+  await assert.rejects(captureWithBrowserCleanup(async () => { throw new Error('capture failed') }, async () => { closed = true }), /capture failed/)
+  assert.equal(closed, true)
+})
 
 test('capture verifies the live Worker identity rather than stale bootstrap publication flags', () => {
   assert.equal(verifiedScreenshotOrigin(origin, health, 'example'), origin)
