@@ -51,3 +51,17 @@ test('website entry always enforces Payload access and an explicit owner or admi
   }
   assert.equal(await ownedWebsite(null, '23'), null)
 })
+
+const { Websites } = await import('../src/collections/Websites.ts')
+
+test('direct API callers cannot replace the owner or tenant routing identity of a website', () => {
+  for (const name of ['owner', 'tenantId', 'workerUrl', 'adminUrl']) {
+    const field = Websites.fields.find((field) => field.name === name)
+    for (const user of [admin, { id: 99, collection: 'users' }]) {
+      assert.equal(field.access.create({ req: { user } }), false, name + ' cannot be supplied by public creation')
+      assert.equal(field.access.update({ req: { user } }), false, name + ' cannot be reassigned by an API client')
+    }
+  }
+  assert.deepEqual(Websites.access.read({ req: { user: { id: 99, collection: 'users' } } }), { owner: { equals: 99 } })
+  assert.equal(Websites.access.read({ req: { user: admin } }), true)
+})
