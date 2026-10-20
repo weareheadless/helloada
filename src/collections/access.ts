@@ -1,5 +1,5 @@
 import type { Access } from 'payload'
-import { isPlatformAdmin } from '../lib/platform-admin'
+import { isPlatformAdmin } from '../lib/platform-admin.ts'
 
 export const isAuthenticated: Access = ({ req }) => Boolean(req.user)
 

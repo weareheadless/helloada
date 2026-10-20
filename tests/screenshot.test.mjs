@@ -3,12 +3,16 @@ import assert from 'node:assert/strict'
 import { cachedScreenshot, verifiedScreenshotOrigin, screenshotRequestAllowed } from '../src/lib/screenshot-policy.ts'
 
 const origin = 'https://helloada-example.weareheadless.workers.dev'
-function remote(url = origin) { return { tenant_id: 'example', website_live: true, resource_receipts: { creating_worker: { worker_url: url } } } }
+const health = { ok: true, service: 'helloada-site', tenant: 'example' }
 
-test('capture target comes only from a live, matching tenant and managed public Worker', () => {
-  assert.equal(verifiedScreenshotOrigin(remote(), 'example'), origin)
-  for (const value of [null, { ...remote(), tenant_id: 'other' }, { ...remote(), website_live: false }, remote('http://127.0.0.1'), remote('https://127.0.0.1'), remote('https://localhost'), remote('https://evil.example'), remote('https://user:password@helloada-example.weareheadless.workers.dev')]) {
-    assert.equal(verifiedScreenshotOrigin(value, 'example'), null)
+test('capture verifies the live Worker identity rather than stale bootstrap publication flags', () => {
+  assert.equal(verifiedScreenshotOrigin(origin, health, 'example'), origin)
+  assert.equal(verifiedScreenshotOrigin('https://shop.example.com', health, 'example'), 'https://shop.example.com')
+  for (const value of [null, { ...health, tenant: 'other' }, { ...health, ok: false }, { ...health, service: 'other' }]) {
+    assert.equal(verifiedScreenshotOrigin(origin, value, 'example'), null)
+  }
+  for (const url of ['http://127.0.0.1', 'https://127.0.0.1', 'https://localhost', 'https://evil.example', 'https://user:password@helloada-example.weareheadless.workers.dev']) {
+    assert.equal(verifiedScreenshotOrigin(url, health, 'example'), null)
   }
 })
 

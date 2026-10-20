@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
-import { isAuthenticated, isWebsiteMember } from './access'
+import { isAuthenticated, isWebsiteMember } from './access.ts'
 
 export const Websites: CollectionConfig = {
   slug: 'websites',
@@ -38,6 +38,7 @@ export const Websites: CollectionConfig = {
     },
     {
       name: 'owner',
+      access: { create: () => false, update: () => false },
       type: 'relationship',
       relationTo: 'users',
       required: true,
@@ -56,10 +57,12 @@ export const Websites: CollectionConfig = {
     },
     {
       name: 'workerUrl',
+      access: { create: () => false, update: () => false },
       type: 'text',
     },
     {
       name: 'adminUrl',
+      access: { create: () => false, update: () => false },
       type: 'text',
     },
     {
@@ -74,6 +77,7 @@ export const Websites: CollectionConfig = {
     },
     {
       name: 'tenantId',
+      access: { create: () => false, update: () => false },
       type: 'text',
       admin: { readOnly: true },
     },

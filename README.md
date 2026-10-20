@@ -87,8 +87,8 @@ Handoffs use the administrator's own subject, preserving a distinct identity.
 Portfolio removal remains a personal visibility preference for administrators.
 
 Website cards load an authenticated screenshot endpoint. The endpoint checks
-website access, resolves a live managed Worker origin from the canonical bootstrap
-receipt, and captures its public home page through the BROWSER binding. It sends
+website access, verifies the server-managed Worker origin against its live tenant health
+identity, and captures its public home page through the BROWSER binding. It sends
 no owner cookies or private tokens to the browser. Screenshots are cached privately
 in the existing R2 bucket for 24 hours, replacing the same key on refresh. Browser
 navigation is restricted to the verified origin. Unbuilt sites and capture errors
