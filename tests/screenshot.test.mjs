@@ -1,9 +1,21 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { cachedScreenshot, captureWithBrowserCleanup, verifiedScreenshotOrigin, screenshotRequestAllowed } from '../src/lib/screenshot-policy.ts'
+import { cachedScreenshot, captureWithBrowserCleanup, liveScreenshotOrigin, verifiedScreenshotOrigin, screenshotRequestAllowed } from '../src/lib/screenshot-policy.ts'
 
 const origin = 'https://helloada-example.weareheadless.workers.dev'
 const health = { ok: true, service: 'helloada-site', tenant: 'example' }
+
+test('live verification uses the edge-supported manual redirect mode and refuses redirects', async () => {
+  assert.equal(await liveScreenshotOrigin(origin, 'example', async (url, init) => {
+    assert.equal(url, origin + '/api/health')
+    assert.equal(init.redirect, 'manual')
+    return Response.json(health)
+  }), origin)
+  assert.equal(await liveScreenshotOrigin(origin, 'example', async (_url, init) => {
+    assert.equal(init.redirect, 'manual')
+    return new Response(null, { status: 302, headers: { location: 'https://other.example.com' } })
+  }), null)
+})
 
 test('the browser stays open until the screenshot promise resolves', async () => {
   let finish
@@ -60,4 +72,18 @@ test('expired captures are replaced and failed captures can be retried', async (
   assert.equal(writes.length, 1)
   assert.equal(writes[0][0], 'expired')
   assert.equal(writes[0][2].httpMetadata.contentType, 'image/jpeg')
+})
+
+test('uncached captures for different websites run serially', async () => {
+  const events = []
+  let finish
+  const gate = new Promise((resolve) => { finish = resolve })
+  const bucket = { get: async () => null, put: async () => {} }
+  const first = cachedScreenshot(bucket, 'serial-first', async () => { events.push('first'); await gate; events.push('first done'); return new Uint8Array([1]) })
+  const second = cachedScreenshot(bucket, 'serial-second', async () => { events.push('second'); return new Uint8Array([2]) })
+  await new Promise((resolve) => setTimeout(resolve, 1200))
+  assert.deepEqual(events, ['first'])
+  finish()
+  await Promise.all([first, second])
+  assert.deepEqual(events, ['first', 'first done', 'second'])
 })
