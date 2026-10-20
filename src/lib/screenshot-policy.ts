@@ -1,7 +1,4 @@
-export function verifiedScreenshotOrigin(remote: Record<string, unknown> | null, tenantId: string): string | null {
-  if (!remote || remote.tenant_id !== tenantId || remote.website_live !== true) return null
-  const receipts = remote.resource_receipts as { creating_worker?: { worker_url?: unknown } } | undefined
-  const candidate = receipts?.creating_worker?.worker_url
+export function managedScreenshotOrigin(candidate: unknown): string | null {
   if (typeof candidate !== 'string') return null
   try {
     const url = new URL(candidate)
@@ -9,6 +6,11 @@ export function verifiedScreenshotOrigin(remote: Record<string, unknown> | null,
       || !/^[a-z0-9-]+\.weareheadless\.workers\.dev$/.test(url.hostname)) return null
     return url.origin
   } catch { return null }
+}
+
+export function verifiedScreenshotOrigin(candidate: unknown, health: Record<string, unknown> | null, tenantId: string): string | null {
+  if (!health || health.ok !== true || health.service !== 'helloada-site' || health.tenant !== tenantId) return null
+  return managedScreenshotOrigin(candidate)
 }
 
 export function screenshotRequestAllowed(candidate: string, origin: string, navigation: boolean): boolean {

@@ -2,8 +2,8 @@ import { headers } from 'next/headers'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import type { BrowserWorker } from '@cloudflare/puppeteer'
 import { currentUser } from '@/lib/auth'
-import { ownedWebsite, websiteBootstrapStatus } from '@/lib/website'
-import { cachedScreenshot, screenshotRequestAllowed, verifiedScreenshotOrigin } from '@/lib/screenshot-policy'
+import { ownedWebsite } from '@/lib/website'
+import { cachedScreenshot, managedScreenshotOrigin, screenshotRequestAllowed, verifiedScreenshotOrigin } from '@/lib/screenshot-policy'
 import type { ScreenshotBucket } from '@/lib/screenshot-policy'
 
 export const dynamic = 'force-dynamic'
@@ -16,12 +16,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!website) return Response.json({ error: 'website_not_found' }, { status: 404 })
   if (!website.tenantId) return Response.json({ error: 'website_not_ready' }, { status: 404 })
 
-  const status = await websiteBootstrapStatus(website.tenantId)
-  if (!status.ok) return Response.json({ error: 'preview_status_unavailable' }, { status: 503 })
-  const origin = verifiedScreenshotOrigin(await status.json().catch(() => null), website.tenantId)
-  if (!origin) return Response.json({ error: 'website_not_live' }, { status: 404 })
-
   try {
+    const candidate = managedScreenshotOrigin(website.workerUrl)
+    if (!candidate) return Response.json({ error: 'website_not_ready' }, { status: 404 })
+    const health = await fetch(candidate + '/api/health', {
+      cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(10_000),
+    })
+    const origin = health.ok ? verifiedScreenshotOrigin(candidate, await health.json().catch(() => null), website.tenantId) : null
+    if (!origin) return Response.json({ error: 'website_identity_unverified' }, { status: 503 })
     const { env } = await getCloudflareContext({ async: true })
     const bindings = env as unknown as { BROWSER: BrowserWorker; R2: ScreenshotBucket }
     const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(origin)))
