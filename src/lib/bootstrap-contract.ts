@@ -38,7 +38,7 @@ const setupSteps = [
 ] as const
 
 const releaseGroups = [
-  { label: 'Check the shared website system', stages: ['preflight', 'credentials', 'checkout', 'shared-runtime-overlay', 'dependencies'] },
+  { label: 'Check the shared website system', stages: ['preflight', 'credentials', 'checkout', 'shared-runtime-overlay', 'dependencies', 'generate-payload-contract', 'typecheck'] },
   { label: 'Build your admin workspace', stages: ['build', 'artifact-verified'] },
   { label: 'Prepare your database and inbox', stages: ['provision-mailflare-resources', 'migrate-mailflare-schema', 'provision-turnstile', 'initialize-schema', 'migrate-schema', 'verify-workspace-bootstrap-contract', 'verify-payload-contract'] },
   { label: 'Deploy your workspace', stages: ['deploy-durable-object-lifecycle', 'upload', 'promote'] },
