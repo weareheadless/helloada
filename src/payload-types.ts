@@ -179,6 +179,7 @@ export interface BootstrapJob {
         | 'creating_repository'
         | 'creating_worker'
         | 'creating_data'
+        | 'creating_worker_identity'
         | 'queueing_shell_release'
         | 'deploying_shell'
         | 'ready'

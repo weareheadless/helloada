@@ -100,6 +100,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       websiteLive: remote.website_live,
       retries: Number(job?.retries || 0),
       updatedAt: remote.updated_at || job?.updatedAt || null,
+      diagnostic: typeof remote.diagnostic === 'string' ? remote.diagnostic : '',
+      steps: remote.steps,
+      release: remote.release_progress,
     },
   }, { headers: { 'cache-control': 'no-store' } })
 }
