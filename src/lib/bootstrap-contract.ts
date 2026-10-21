@@ -60,7 +60,7 @@ export function bootstrapProgress(state: BootstrapState) {
     rows.push({ id: 'release-' + index, label: item.label,
       status: ready ? 'done' : index < group ? 'done' : index === group ? (failed ? 'failed' : 'running') : 'pending' })
   }
-  rows.push({ id: 'ready', label: 'Open your workspace with Ada', status: ready ? 'done' : 'pending' })
+  rows.push({ id: 'ready', label: 'Admin workspace ready for Ada', status: ready ? 'done' : 'pending' })
   const completed = rows.filter(row => row.status === 'done').length
   return { rows, completed, total: rows.length, percent: Math.round(100 * completed / rows.length),
     active: rows.find(row => row.status === 'failed' || row.status === 'running')?.label
