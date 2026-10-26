@@ -1,4 +1,6 @@
 import type { currentUser } from './auth'
+import type { HelloAdaIntelligenceIdentity } from './intelligence-identity'
+import { isMatchingIntelligenceIdentity, isMatchingRegistrationScope, siteAgentRegistrationReceipt } from './intelligence-identity.ts'
 import { websiteScope } from './platform-admin.ts'
 
 export async function ownedWebsite(auth: Awaited<ReturnType<typeof currentUser>>, id: string) {
@@ -47,11 +49,98 @@ export async function siteAgentRequest(tenantId: string, path: string, init: Req
   }
 }
 
-export function registerWebsiteTenant(tenantId: string, displayName: string) {
+export function registerWebsiteTenant(
+  tenantId: string,
+  displayName: string,
+  identity?: HelloAdaIntelligenceIdentity,
+) {
   return siteAgentRequest(tenantId, '/register', {
     method: 'POST',
-    body: JSON.stringify({ display_name: displayName }),
+    body: JSON.stringify({
+      display_name: displayName,
+      ...(identity ? {
+        external_organization_id: identity.externalOrganizationId,
+        owner_subject: identity.ownerSubject,
+        origin: {
+          system: identity.origin.system,
+          external_id: identity.origin.externalId,
+        },
+        external_project_id: identity.externalProjectId,
+      } : {}),
+    }),
   })
+}
+
+export function matchingLegacyWebsite<T extends { tenantId?: unknown }>(docs: T[], requestDigest: string): T | null | 'ambiguous' {
+  const matches = docs.filter(candidate => String(candidate.tenantId || '').endsWith(`-${requestDigest}`))
+  return matches.length > 1 ? 'ambiguous' : matches[0] || null
+}
+
+type WebsiteRow = { id: number; name?: unknown; tenantId?: unknown }
+type WebsiteCreatePayload = {
+  find(args: Record<string, unknown>): Promise<{ docs: Array<Record<string, unknown>> }>
+  create(args: Record<string, unknown>): Promise<WebsiteRow>
+}
+
+export async function resolveOrCreateOwnerWebsite(
+  payload: WebsiteCreatePayload,
+  req: unknown,
+  ownerId: string | number,
+  identity: HelloAdaIntelligenceIdentity & { tenantId: string; requestDigest: string },
+  name: string,
+) {
+  const find = (tenantId: string) => payload.find({ collection: 'websites', req, where: { and: [
+    { tenantId: { equals: tenantId } }, { owner: { equals: ownerId } },
+  ] }, limit: 1, depth: 0 })
+  let website = (await find(identity.tenantId)).docs[0] as WebsiteRow | undefined
+  if (!website) {
+    const legacy = await payload.find({ collection: 'websites', req, where: { and: [
+      { owner: { equals: ownerId } }, { tenantId: { contains: identity.requestDigest } },
+    ] }, limit: 100, depth: 0 })
+    const match = matchingLegacyWebsite(legacy.docs, identity.requestDigest)
+    if (match === 'ambiguous') return { error: 'idempotency_conflict' as const }
+    website = match as WebsiteRow | null || undefined
+  }
+  const legacyTenantId = website ? String(website.tenantId || '') : ''
+  const resolvedIdentity = legacyTenantId && legacyTenantId !== identity.tenantId
+    ? { ...identity, tenantId: legacyTenantId, origin: { system: 'helloada' as const, externalId: legacyTenantId }, externalProjectId: `helloada:${legacyTenantId}` }
+    : identity
+  if (website && String(website.name || '') !== name) return { error: 'idempotency_conflict' as const }
+  if (!website) {
+    try {
+      website = await payload.create({ collection: 'websites', req, data: {
+        name, slug: resolvedIdentity.tenantId, tenantId: resolvedIdentity.tenantId, owner: ownerId,
+        phase: 'intake', domainStatus: 'not_connected',
+      } })
+    } catch (error) {
+      website = (await find(resolvedIdentity.tenantId)).docs[0] as WebsiteRow | undefined
+      if (!website) throw error
+      if (String(website.name || '') !== name) return { error: 'idempotency_conflict' as const }
+    }
+  }
+  return { website, identity: resolvedIdentity }
+}
+
+export function canonicalIntelligenceReceipt(
+  registration: Record<string, unknown>,
+  identity: HelloAdaIntelligenceIdentity,
+) {
+  const identityPresent = Object.hasOwn(registration, 'intelligence_identity')
+  if (identityPresent && !isMatchingIntelligenceIdentity(registration.intelligence_identity, identity)) return 'invalid' as const
+  const receipt = siteAgentRegistrationReceipt(registration.intelligence_registration)
+  if (receipt === 'invalid') return 'invalid' as const
+  if (receipt && (!identityPresent || !isMatchingIntelligenceIdentity(registration.intelligence_identity, identity)
+    || !isMatchingRegistrationScope(registration.intelligence_registration, identity))) return 'invalid' as const
+  return {
+    status: receipt ? 'registered' as const : identityPresent ? 'acknowledged' as const : 'pending' as const,
+    identity: {
+      externalOrganizationId: identity.externalOrganizationId,
+      ownerSubject: identity.ownerSubject,
+      origin: identity.origin,
+      externalProjectId: identity.externalProjectId,
+    },
+    ...(receipt ? { workspaceId: receipt.workspace_id, projectId: receipt.project_id } : {}),
+  }
 }
 
 export function startWebsiteBootstrap(tenantId: string, displayName: string) {

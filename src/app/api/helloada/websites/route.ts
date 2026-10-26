@@ -3,38 +3,9 @@ import { headers } from 'next/headers'
 
 import { currentUser } from '@/lib/auth'
 import { isBootstrapStatus, isBootstrapStep } from '@/lib/bootstrap-contract'
+import { helloAdaIntelligenceIdentity } from '@/lib/intelligence-identity'
 import { tenantAdminUrl } from '@/lib/tenant-admin'
-import { registerWebsiteTenant, startWebsiteBootstrap } from '@/lib/website'
-
-function slugify(value: string) {
-  const base = value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-  const safe = /^[a-z]/.test(base) ? base : 'site-' + base
-  return (safe.slice(0, 45).replace(/-+$/, '') || 'website')
-}
-
-async function websiteIdentity(ownerId: string, requestKey: string, name: string) {
-  const bytes = new TextEncoder().encode(ownerId + '\n' + requestKey)
-  const digest = await crypto.subtle.digest('SHA-256', bytes)
-  const suffix = Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('').slice(0, 16)
-  const tenantId = slugify(name) + '-' + suffix
-  return { tenantId, slug: tenantId }
-}
-
-async function findOwnerWebsite(auth: NonNullable<Awaited<ReturnType<typeof currentUser>>>, tenantId: string) {
-  const result = await auth.payload.find({
-    collection: 'websites',
-    req: auth.req,
-    where: {
-      and: [
-        { tenantId: { equals: tenantId } },
-        { owner: { equals: auth.user.id } },
-      ],
-    },
-    limit: 1,
-    depth: 0,
-  })
-  return result.docs[0]
-}
+import { canonicalIntelligenceReceipt, registerWebsiteTenant, resolveOrCreateOwnerWebsite, startWebsiteBootstrap } from '@/lib/website'
 
 export async function POST(request: Request) {
   const auth = await currentUser(await headers())
@@ -48,33 +19,10 @@ export async function POST(request: Request) {
   const name = String(body?.name || '').trim().slice(0, 120)
   if (!name) return NextResponse.json({ error: 'name_required' }, { status: 400 })
 
-  const identity = await websiteIdentity(String(auth.user.id), requestKey, name)
-  let website = await findOwnerWebsite(auth, identity.tenantId)
-  if (website && String(website.name || '') !== name) {
-    return NextResponse.json({ error: 'idempotency_conflict' }, { status: 409 })
-  }
-  if (!website) {
-    try {
-      website = await auth.payload.create({
-        collection: 'websites',
-        req: auth.req,
-        data: {
-          name,
-          slug: identity.slug,
-          tenantId: identity.tenantId,
-          owner: auth.user.id,
-          phase: 'intake',
-          domainStatus: 'not_connected',
-        },
-      })
-    } catch (error) {
-      website = await findOwnerWebsite(auth, identity.tenantId)
-      if (!website) throw error
-      if (String(website.name || '') !== name) {
-        return NextResponse.json({ error: 'idempotency_conflict' }, { status: 409 })
-      }
-    }
-  }
+  const requestedIdentity = await helloAdaIntelligenceIdentity(String(auth.user.id), requestKey)
+  const websiteResolution = await resolveOrCreateOwnerWebsite(auth.payload as never, auth.req, auth.user.id, requestedIdentity, name)
+  if ('error' in websiteResolution) return NextResponse.json({ error: websiteResolution.error }, { status: 409 })
+  const { website, identity } = websiteResolution
 
   const existingJobs = await auth.payload.find({
     collection: 'bootstrap-jobs',
@@ -90,23 +38,47 @@ export async function POST(request: Request) {
     data: { website: website.id, step: 'requested', status: 'queued', retries: 0, resourceReceipts: {}, diagnostic: '' },
   })
 
-  const registrationResponse = await registerWebsiteTenant(identity.tenantId, name)
+  const registrationResponse = await registerWebsiteTenant(identity.tenantId, name, identity)
   const registration = await registrationResponse.json().catch(() => ({})) as {
     tenant_id?: string
     schema_version?: number
     status?: string
-    detail?: string
-    error?: string
+    intelligence_identity?: unknown
   }
-  if (!registrationResponse.ok || registration.tenant_id !== identity.tenantId) {
+  const parsedReceipt = canonicalIntelligenceReceipt(registration, identity)
+  const canonicalReceipt = parsedReceipt === 'invalid' ? undefined : parsedReceipt
+  const previousReceipts = bootstrapJob.resourceReceipts && typeof bootstrapJob.resourceReceipts === 'object'
+    ? bootstrapJob.resourceReceipts as Record<string, unknown> : {}
+  const previousIntelligence = previousReceipts.intelligence && typeof previousReceipts.intelligence === 'object'
+    ? previousReceipts.intelligence as Record<string, unknown> : {}
+  const intelligenceReceipt = !canonicalReceipt ? null : {
+    ...canonicalReceipt,
+    ...(previousIntelligence.workspaceId && canonicalReceipt.status !== 'registered'
+      ? { workspaceId: previousIntelligence.workspaceId } : {}),
+    ...(previousIntelligence.projectId && canonicalReceipt.status !== 'registered'
+      ? { projectId: previousIntelligence.projectId } : {}),
+    ...(previousIntelligence.status === 'registered' && canonicalReceipt.status === 'pending'
+      ? { status: 'registered' as const } : {}),
+    retry: 'Repeat this owner-scoped create request with the same Idempotency-Key and name.',
+  }
+  if (!registrationResponse.ok || registration.tenant_id !== identity.tenantId
+    || !canonicalReceipt
+    || (canonicalReceipt.status === 'registered'
+      && ((previousIntelligence.workspaceId && previousIntelligence.workspaceId !== canonicalReceipt.workspaceId)
+        || (previousIntelligence.projectId && previousIntelligence.projectId !== canonicalReceipt.projectId)))) {
     const diagnostic = registrationResponse.ok
-      ? 'Site-agent returned a different tenant identity.'
-      : String(registration.detail || registration.error || 'The tenant could not be registered.').slice(0, 500)
+      ? 'Site-agent returned a mismatched tenant or intelligence identity.'
+      : 'The tenant could not be registered. Repeat the request with the same idempotency key to retry.'
     await auth.payload.update({
       collection: 'bootstrap-jobs',
       id: bootstrapJob.id,
       req: auth.req,
-      data: { step: 'needs_attention', status: 'failed', diagnostic },
+      data: {
+        step: 'needs_attention',
+        status: 'failed',
+        resourceReceipts: { ...previousReceipts, intelligence: intelligenceReceipt },
+        diagnostic,
+      },
     })
     await auth.payload.update({
       collection: 'websites',
@@ -114,7 +86,7 @@ export async function POST(request: Request) {
       req: auth.req,
       data: { phase: 'needs_attention' },
     })
-    return NextResponse.json({ id: website.id, error: 'tenant_registration_failed' }, { status: 201 })
+    return NextResponse.json({ id: website.id, error: 'tenant_registration_failed', intelligenceStatus: 'pending' }, { status: 201 })
   }
 
   const bootstrapResponse = await startWebsiteBootstrap(identity.tenantId, name)
@@ -122,7 +94,6 @@ export async function POST(request: Request) {
     tenant_id?: string
     status?: string
     step?: string
-    diagnostic?: string
     workspace_ready?: boolean
     website_live?: boolean
     resource_receipts?: Record<string, unknown>
@@ -138,12 +109,17 @@ export async function POST(request: Request) {
   if (!contractValid) {
     const diagnostic = bootstrapResponse.ok
       ? 'Site-agent returned an invalid bootstrap contract.'
-      : String(bootstrap.diagnostic || 'The canonical bootstrap could not start.').slice(0, 500)
+      : 'The canonical bootstrap could not start. Repeat the request with the same idempotency key to retry.'
     await auth.payload.update({
       collection: 'bootstrap-jobs',
       id: bootstrapJob.id,
       req: auth.req,
-      data: { step: 'needs_attention', status: 'failed', diagnostic },
+      data: {
+        step: 'needs_attention',
+        status: 'failed',
+        resourceReceipts: { ...previousReceipts, intelligence: intelligenceReceipt },
+        diagnostic,
+      },
     })
     await auth.payload.update({
       collection: 'websites',
@@ -164,7 +140,12 @@ export async function POST(request: Request) {
       collection: 'bootstrap-jobs',
       id: bootstrapJob.id,
       req: auth.req,
-      data: { step: 'needs_attention', status: 'failed', diagnostic: 'Verified admin origin is missing.' },
+      data: {
+        step: 'needs_attention',
+        status: 'failed',
+        resourceReceipts: { ...previousReceipts, intelligence: intelligenceReceipt },
+        diagnostic: 'Verified admin origin is missing.',
+      },
     })
     return NextResponse.json({ id: website.id, error: 'verified_admin_origin_missing' }, { status: 502 })
   }
@@ -179,8 +160,13 @@ export async function POST(request: Request) {
       status: failed ? 'failed' : remoteStatus === 'done' ? 'done' : 'running',
       resourceReceipts: {
         tenant: { tenantId: identity.tenantId, schemaVersion: registration.schema_version || null },
+        // An old Site-Agent may ignore the optional metadata. Pending is never
+        // a ready assertion, even when the exact identity echo was received.
+        intelligence: intelligenceReceipt,
       },
-      diagnostic: String(bootstrap.diagnostic || '').slice(0, 500),
+      diagnostic: remoteStatus === 'failed'
+        ? 'The canonical bootstrap failed. Repeat the request with the same idempotency key to retry.'
+        : '',
     },
   })
   await auth.payload.update({
@@ -199,5 +185,6 @@ export async function POST(request: Request) {
     phase: failed ? 'needs_attention' : 'intake',
     bootstrapJobId: bootstrapJob.id,
     bootstrapStatus: remoteStatus,
+    intelligenceStatus: 'pending',
   }, { status: 201 })
 }

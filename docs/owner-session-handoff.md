@@ -55,3 +55,51 @@ Site-Agent pipeline. New tenant bootstrap uses the public key loaded by the
 current API. Existing tenant Workers must receive the new public binding through
 an explicit Site-Agent release before old-key retirement; until every affected
 tenant is updated, handoff is unavailable for that tenant.
+
+## Intelligence project handoff (UI-017 / UI-004)
+
+When an authenticated owner creates a website, HelloAda derives the tenant and
+intelligence project identity from the authenticated Payload owner ID and the
+owner-scoped `Idempotency-Key` UUID. The display name is only a label. Reusing
+the same key with a different name keeps the same identity and returns the
+existing `idempotency_conflict`; it must not silently create another project.
+An ownership transfer or move to a future organization requires an explicit
+migration and must not silently change this identity.
+
+HelloAda sends this optional JSON metadata to Site-Agent's trusted
+`POST /v1/control-plane/websites/{tenantId}/register` call, alongside
+`display_name`:
+
+```json
+{
+  "external_organization_id": "helloada:<authenticated-owner-user-id>",
+  "owner_subject": "<authenticated-owner-user-id>",
+  "origin": { "system": "helloada", "external_id": "<tenant-id>" },
+  "external_project_id": "helloada:<tenant-id>"
+}
+```
+
+The values are constructed server-side; request-body owner identity is never
+trusted. UI-004's Site-Agent producer should persist these as the stable
+organization, origin, and project identity and return them in an optional
+`intelligence_identity` object using the same snake-case field names. The
+optional producer acknowledgement is paired with
+`intelligence_registration: { "status": "registered", "workspace_id":
+"<server-workspace-id>", "project_id": "<server-project-id>",
+"external_organization_id": "helloada:<owner-id>", "origin": { "system":
+"helloada", "external_id": "<tenant-id>" }, "external_project_id":
+"helloada:<tenant-id>" }`. `registered`
+means the intelligence project is registered; it does not assert research, site,
+knowledge, or workspace readiness. An exact identity echo without this receipt
+is acknowledgement only and remains pending. Older Site-Agent versions may
+omit either optional response field; a missing registration receipt stays
+pending. A supplied identity echo or registration receipt with a wrong scope,
+missing server ID, or unsupported status fails closed. HelloAda persists only
+the whitelisted identity envelope and nonsecret workspace/project IDs, never
+arbitrary producer response fields. Once received, canonical IDs must remain
+stable on retries. A repeated create request with the same key and name is the
+explicit retry path and reuses the same tenant/project. Neither a matching
+registration receipt nor workspace bootstrap readiness means intelligence is
+ready; a later workflow must verify that state. Do not put provider credentials,
+issuer keys, or control-plane tokens in this request metadata, browser payloads,
+or persisted receipts.
