@@ -1,4 +1,5 @@
 import type { currentUser } from './auth'
+import type { HelloAdaIntelligenceIdentity } from './intelligence-identity'
 import { websiteScope } from './platform-admin.ts'
 
 export async function ownedWebsite(auth: Awaited<ReturnType<typeof currentUser>>, id: string) {
@@ -47,10 +48,25 @@ export async function siteAgentRequest(tenantId: string, path: string, init: Req
   }
 }
 
-export function registerWebsiteTenant(tenantId: string, displayName: string) {
+export function registerWebsiteTenant(
+  tenantId: string,
+  displayName: string,
+  identity?: HelloAdaIntelligenceIdentity,
+) {
   return siteAgentRequest(tenantId, '/register', {
     method: 'POST',
-    body: JSON.stringify({ display_name: displayName }),
+    body: JSON.stringify({
+      display_name: displayName,
+      ...(identity ? {
+        external_organization_id: identity.externalOrganizationId,
+        owner_subject: identity.ownerSubject,
+        origin: {
+          system: identity.origin.system,
+          external_id: identity.origin.externalId,
+        },
+        external_project_id: identity.externalProjectId,
+      } : {}),
+    }),
   })
 }
 
