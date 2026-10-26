@@ -82,13 +82,24 @@ HelloAda sends this optional JSON metadata to Site-Agent's trusted
 The values are constructed server-side; request-body owner identity is never
 trusted. UI-004's Site-Agent producer should persist these as the stable
 organization, origin, and project identity and return them in an optional
-`intelligence_identity` object using the same snake-case field names. Older
-Site-Agent versions may ignore the additional request fields and omit that
-object. HelloAda then records an intelligence receipt as `pending` (or
-`registration: acknowledged` when every returned identity field exactly
-matches) and exposes `intelligenceStatus: pending`. An identity mismatch fails
-registration closed. A repeated create request with the same key and name is
-the explicit retry path. Neither a matching registration receipt nor workspace
-bootstrap readiness means intelligence is ready; a later workflow must verify
-that state. Do not put provider credentials, issuer keys, or control-plane
-tokens in this request metadata, browser payloads, or persisted receipts.
+`intelligence_identity` object using the same snake-case field names. The
+optional producer acknowledgement is paired with
+`intelligence_registration: { "status": "registered", "workspace_id":
+"<server-workspace-id>", "project_id": "<server-project-id>",
+"external_organization_id": "helloada:<owner-id>", "origin": { "system":
+"helloada", "external_id": "<tenant-id>" }, "external_project_id":
+"helloada:<tenant-id>" }`. `registered`
+means the intelligence project is registered; it does not assert research, site,
+knowledge, or workspace readiness. An exact identity echo without this receipt
+is acknowledgement only and remains pending. Older Site-Agent versions may
+omit either optional response field; a missing registration receipt stays
+pending. A supplied identity echo or registration receipt with a wrong scope,
+missing server ID, or unsupported status fails closed. HelloAda persists only
+the whitelisted identity envelope and nonsecret workspace/project IDs, never
+arbitrary producer response fields. Once received, canonical IDs must remain
+stable on retries. A repeated create request with the same key and name is the
+explicit retry path and reuses the same tenant/project. Neither a matching
+registration receipt nor workspace bootstrap readiness means intelligence is
+ready; a later workflow must verify that state. Do not put provider credentials,
+issuer keys, or control-plane tokens in this request metadata, browser payloads,
+or persisted receipts.

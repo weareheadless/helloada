@@ -6,6 +6,25 @@ export type HelloAdaIntelligenceIdentity = {
   externalProjectId: string
 }
 
+export type SiteAgentRegistrationReceipt = {
+  status: 'registered'
+  workspace_id: string
+  project_id: string
+}
+
+export function siteAgentRegistrationReceipt(value: unknown): SiteAgentRegistrationReceipt | null | 'invalid' {
+  if (value === undefined || value === null) return null
+  if (!value || typeof value !== 'object') return 'invalid'
+  const receipt = value as Record<string, unknown>
+  if (receipt.status !== 'registered'
+    || typeof receipt.workspace_id !== 'string' || !receipt.workspace_id.trim()
+    || typeof receipt.project_id !== 'string' || !receipt.project_id.trim()
+    || typeof receipt.external_organization_id !== 'string'
+    || !receipt.origin || typeof receipt.origin !== 'object'
+    || typeof receipt.external_project_id !== 'string') return 'invalid'
+  return { status: 'registered', workspace_id: receipt.workspace_id, project_id: receipt.project_id }
+}
+
 export async function helloAdaIntelligenceIdentity(
   ownerId: string,
   requestKey: string,
@@ -44,4 +63,14 @@ export function isMatchingIntelligenceIdentity(value: unknown, expected: HelloAd
     && !!origin && typeof origin === 'object'
     && (origin as Record<string, unknown>).system === expected.origin.system
     && (origin as Record<string, unknown>).external_id === expected.origin.externalId
+}
+
+export function isMatchingRegistrationScope(value: unknown, expected: HelloAdaIntelligenceIdentity) {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Record<string, unknown>
+  return candidate.external_organization_id === expected.externalOrganizationId
+    && candidate.external_project_id === expected.externalProjectId
+    && !!candidate.origin && typeof candidate.origin === 'object'
+    && (candidate.origin as Record<string, unknown>).system === expected.origin.system
+    && (candidate.origin as Record<string, unknown>).external_id === expected.origin.externalId
 }

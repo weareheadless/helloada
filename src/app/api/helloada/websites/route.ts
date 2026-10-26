@@ -3,44 +3,9 @@ import { headers } from 'next/headers'
 
 import { currentUser } from '@/lib/auth'
 import { isBootstrapStatus, isBootstrapStep } from '@/lib/bootstrap-contract'
-import { helloAdaIntelligenceIdentity, isMatchingIntelligenceIdentity } from '@/lib/intelligence-identity'
+import { helloAdaIntelligenceIdentity } from '@/lib/intelligence-identity'
 import { tenantAdminUrl } from '@/lib/tenant-admin'
-import { registerWebsiteTenant, startWebsiteBootstrap } from '@/lib/website'
-
-async function findOwnerWebsite(auth: NonNullable<Awaited<ReturnType<typeof currentUser>>>, tenantId: string) {
-  const result = await auth.payload.find({
-    collection: 'websites',
-    req: auth.req,
-    where: {
-      and: [
-        { tenantId: { equals: tenantId } },
-        { owner: { equals: auth.user.id } },
-      ],
-    },
-    limit: 1,
-    depth: 0,
-  })
-  return result.docs[0]
-}
-
-async function findLegacyOwnerWebsiteForRequest(
-  auth: NonNullable<Awaited<ReturnType<typeof currentUser>>>,
-  requestDigest: string,
-) {
-  const result = await auth.payload.find({
-    collection: 'websites',
-    req: auth.req,
-    where: {
-      and: [
-        { owner: { equals: auth.user.id } },
-        { tenantId: { contains: requestDigest } },
-      ],
-    },
-    limit: 100,
-    depth: 0,
-  })
-  return result.docs.find((candidate) => String(candidate.tenantId || '').endsWith(`-${requestDigest}`))
-}
+import { canonicalIntelligenceReceipt, registerWebsiteTenant, resolveOrCreateOwnerWebsite, startWebsiteBootstrap } from '@/lib/website'
 
 export async function POST(request: Request) {
   const auth = await currentUser(await headers())
@@ -55,42 +20,9 @@ export async function POST(request: Request) {
   if (!name) return NextResponse.json({ error: 'name_required' }, { status: 400 })
 
   const requestedIdentity = await helloAdaIntelligenceIdentity(String(auth.user.id), requestKey)
-  let website: Awaited<ReturnType<typeof findOwnerWebsite>> | undefined = await findOwnerWebsite(auth, requestedIdentity.tenantId)
-  if (!website) website = await findLegacyOwnerWebsiteForRequest(auth, requestedIdentity.requestDigest)
-  const legacyTenantId = website ? String(website.tenantId || '') : ''
-  const identity = legacyTenantId && legacyTenantId !== requestedIdentity.tenantId
-    ? {
-        ...requestedIdentity,
-        tenantId: legacyTenantId,
-        origin: { system: 'helloada' as const, externalId: legacyTenantId },
-        externalProjectId: `helloada:${legacyTenantId}`,
-      }
-    : requestedIdentity
-  if (website && String(website.name || '') !== name) {
-    return NextResponse.json({ error: 'idempotency_conflict' }, { status: 409 })
-  }
-  if (!website) {
-    try {
-      website = await auth.payload.create({
-        collection: 'websites',
-        req: auth.req,
-        data: {
-          name,
-          slug: identity.tenantId,
-          tenantId: identity.tenantId,
-          owner: auth.user.id,
-          phase: 'intake',
-          domainStatus: 'not_connected',
-        },
-      })
-    } catch (error) {
-      website = await findOwnerWebsite(auth, identity.tenantId)
-      if (!website) throw error
-      if (String(website.name || '') !== name) {
-        return NextResponse.json({ error: 'idempotency_conflict' }, { status: 409 })
-      }
-    }
-  }
+  const websiteResolution = await resolveOrCreateOwnerWebsite(auth.payload as never, auth.req, auth.user.id, requestedIdentity, name)
+  if ('error' in websiteResolution) return NextResponse.json({ error: websiteResolution.error }, { status: 409 })
+  const { website, identity } = websiteResolution
 
   const existingJobs = await auth.payload.find({
     collection: 'bootstrap-jobs',
@@ -113,22 +45,27 @@ export async function POST(request: Request) {
     status?: string
     intelligence_identity?: unknown
   }
-  const hasIdentityReceipt = Object.hasOwn(registration, 'intelligence_identity')
-  const identityReceiptMatches = hasIdentityReceipt
-    && isMatchingIntelligenceIdentity(registration.intelligence_identity, identity)
-  const intelligenceReceipt = {
-    status: 'pending',
-    registration: identityReceiptMatches ? 'acknowledged' : 'pending',
-    identity: {
-      externalOrganizationId: identity.externalOrganizationId,
-      ownerSubject: identity.ownerSubject,
-      origin: identity.origin,
-      externalProjectId: identity.externalProjectId,
-    },
+  const parsedReceipt = canonicalIntelligenceReceipt(registration, identity)
+  const canonicalReceipt = parsedReceipt === 'invalid' ? undefined : parsedReceipt
+  const previousReceipts = bootstrapJob.resourceReceipts && typeof bootstrapJob.resourceReceipts === 'object'
+    ? bootstrapJob.resourceReceipts as Record<string, unknown> : {}
+  const previousIntelligence = previousReceipts.intelligence && typeof previousReceipts.intelligence === 'object'
+    ? previousReceipts.intelligence as Record<string, unknown> : {}
+  const intelligenceReceipt = !canonicalReceipt ? null : {
+    ...canonicalReceipt,
+    ...(previousIntelligence.workspaceId && canonicalReceipt.status !== 'registered'
+      ? { workspaceId: previousIntelligence.workspaceId } : {}),
+    ...(previousIntelligence.projectId && canonicalReceipt.status !== 'registered'
+      ? { projectId: previousIntelligence.projectId } : {}),
+    ...(previousIntelligence.status === 'registered' && canonicalReceipt.status === 'pending'
+      ? { status: 'registered' as const } : {}),
     retry: 'Repeat this owner-scoped create request with the same Idempotency-Key and name.',
   }
   if (!registrationResponse.ok || registration.tenant_id !== identity.tenantId
-    || (hasIdentityReceipt && !identityReceiptMatches)) {
+    || !canonicalReceipt
+    || (canonicalReceipt.status === 'registered'
+      && ((previousIntelligence.workspaceId && previousIntelligence.workspaceId !== canonicalReceipt.workspaceId)
+        || (previousIntelligence.projectId && previousIntelligence.projectId !== canonicalReceipt.projectId)))) {
     const diagnostic = registrationResponse.ok
       ? 'Site-agent returned a mismatched tenant or intelligence identity.'
       : 'The tenant could not be registered. Repeat the request with the same idempotency key to retry.'
@@ -139,7 +76,7 @@ export async function POST(request: Request) {
       data: {
         step: 'needs_attention',
         status: 'failed',
-        resourceReceipts: { intelligence: intelligenceReceipt },
+        resourceReceipts: { ...previousReceipts, intelligence: intelligenceReceipt },
         diagnostic,
       },
     })
@@ -180,7 +117,7 @@ export async function POST(request: Request) {
       data: {
         step: 'needs_attention',
         status: 'failed',
-        resourceReceipts: { intelligence: intelligenceReceipt },
+        resourceReceipts: { ...previousReceipts, intelligence: intelligenceReceipt },
         diagnostic,
       },
     })
@@ -206,7 +143,7 @@ export async function POST(request: Request) {
       data: {
         step: 'needs_attention',
         status: 'failed',
-        resourceReceipts: { intelligence: intelligenceReceipt },
+        resourceReceipts: { ...previousReceipts, intelligence: intelligenceReceipt },
         diagnostic: 'Verified admin origin is missing.',
       },
     })
