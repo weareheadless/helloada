@@ -154,6 +154,24 @@ export function websiteBootstrapStatus(tenantId: string) {
   return siteAgentRequest(tenantId, '/bootstrap')
 }
 
+export function websiteIntelligence(tenantId: string) {
+  return siteAgentRequest(tenantId, '/intelligence')
+}
+
+export async function ownerWebsiteIntelligence(tenantId?: string | null) {
+  if (!tenantId) return { state: 'unavailable' as const, reason: 'Tenant identity is not available.' }
+  try {
+    const response = await websiteIntelligence(tenantId)
+    const body = await response.json().catch(() => null) as Record<string, unknown> | null
+    if (!response.ok || !body || typeof body !== 'object') {
+      return { state: 'unavailable' as const, reason: typeof body?.reason === 'string' ? body.reason : `Intelligence service returned ${response.status}.` }
+    }
+    return { state: 'available' as const, data: body }
+  } catch {
+    return { state: 'unavailable' as const, reason: 'The intelligence service could not be reached.' }
+  }
+}
+
 export function websiteHistory(tenantId: string, limit = 50) {
   return siteAgentRequest(tenantId, `/history?limit=${Math.max(1, Math.min(100, Math.trunc(limit)))}`)
 }

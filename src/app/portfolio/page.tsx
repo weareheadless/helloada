@@ -5,8 +5,10 @@ import { redirect } from 'next/navigation'
 import { BrandLink } from '@/components/brand-link'
 import { currentUser } from '@/lib/auth'
 import { removedWebsiteIds } from '@/lib/portfolio'
+import { ownerWebsiteIntelligence } from '@/lib/website'
 import { isPlatformAdmin, websiteScope } from '@/lib/platform-admin'
 import { CreateWebsiteForm, WebsiteVisibility, WebsiteScreenshot } from './ui'
+import { IntelligenceSummary } from '../websites/[id]/intelligence-summary'
 
 const phaseLabels: Record<string, string> = {
   intake: 'Getting started',
@@ -30,6 +32,9 @@ export default async function PortfolioPage() {
   const removedIds = await removedWebsiteIds(auth)
   const visibleWebsites = websites.docs.filter((website) => !removedIds.has(String(website.id)))
   const removedWebsites = websites.docs.filter((website) => removedIds.has(String(website.id)))
+  const intelligenceByWebsite = new Map(await Promise.all((administrator ? [] : visibleWebsites).map(async website => [
+    String(website.id), await ownerWebsiteIntelligence(website.tenantId ? String(website.tenantId) : null),
+  ] as const)))
 
   return (
     <main className="app-shell">
@@ -59,6 +64,7 @@ export default async function PortfolioPage() {
                   <span className="site-url">Open website admin <span aria-hidden="true">↗</span></span>
                 </Link>
                 <WebsiteVisibility id={String(website.id)} name={website.name} removed={false} />
+                {intelligenceByWebsite.has(String(website.id)) && <IntelligenceSummary result={intelligenceByWebsite.get(String(website.id))!} />}
               </article>
             )
           })}
