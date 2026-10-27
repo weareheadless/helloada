@@ -163,9 +163,12 @@ export async function ownerWebsiteIntelligence(tenantId?: string | null) {
   try {
     const response = await websiteIntelligence(tenantId)
     const body = await response.json().catch(() => null) as Record<string, unknown> | null
+    if (response.status === 404 || body?.state === 'not_started') return { state: 'not_started' as const }
     if (!response.ok || !body || typeof body !== 'object') {
-      return { state: 'unavailable' as const, reason: typeof body?.reason === 'string' ? body.reason : `Intelligence service returned ${response.status}.` }
+      return { state: 'unavailable' as const, reason: typeof body?.reason === 'string' ? body.reason : 'The intelligence service could not load your summary.' }
     }
+    if (body.state === 'unavailable') return { state: 'unavailable' as const, reason: typeof body.reason === 'string' ? body.reason : 'The intelligence service could not load your summary.' }
+    if (body.state === 'available' && body.data && typeof body.data === 'object') return { state: 'available' as const, data: body.data as Record<string, unknown> }
     return { state: 'available' as const, data: body }
   } catch {
     return { state: 'unavailable' as const, reason: 'The intelligence service could not be reached.' }

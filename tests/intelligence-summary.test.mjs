@@ -51,6 +51,26 @@ test('no-research state is truthful and unknown counts are not rendered as zero'
   assert.doesNotMatch(html, /Answered:<\/strong> 0|Waiting on you:<\/strong> 0|Observed:<\/strong> 0/)
 })
 
+test('not-started intelligence is informational and explains the next step', () => {
+  const html = render({ state: 'not_started' })
+  assert.match(html, /Intelligence appears after intake and research/)
+  assert.match(html, /Continue with the intake below/)
+  assert.doesNotMatch(html, /unavailable|error|role="alert"|\b404\b/i)
+})
+
+test('404 becomes not-started and unavailable copy does not expose status codes', async () => {
+  const previousFetch = globalThis.fetch
+  process.env.SITE_AGENT_URL = 'https://agent.example'
+  process.env.HELLOADA_CONTROL_PLANE_TOKEN = 'control-test-token'
+  try {
+    globalThis.fetch = async () => new Response('{}', { status: 404 })
+    assert.deepEqual(await ownerWebsiteIntelligence('tenant-7'), { state: 'not_started' })
+    const html = render({ state: 'unavailable', reason: 'HTTP 503 service failure' })
+    assert.doesNotMatch(html, /\b\d{3}\b/)
+    assert.match(html, /temporarily unavailable/)
+  } finally { globalThis.fetch = previousFetch }
+})
+
 test('research-present state shows findings, waiting questions, visibility, and owning action link', () => {
   const html = render({ state: 'available', data: { businessProfile: { name: 'Atelier', revision: 2 }, research: { status: 'complete', lastRun: 'Yesterday', findings: ['Local demand is rising'], pending: ['Confirm service area'], blocked: ['Analytics access'] }, coverage: { answered: 3, waitingOnOwner: 1 }, visibility: { observed: ['Mention in one answer'], unknown: ['Other assistants'] }, actions: [{ id: 'a1', title: 'Review service area', href: '/websites/7/admin/growth' }] } })
   for (const text of ['Local demand is rising', 'Confirm service area', 'Analytics access', '3', '1', 'Mention in one answer', 'Other assistants', 'Review service area']) assert.ok(html.includes(text), `missing ${text}`)
