@@ -2,7 +2,7 @@ import Link from 'next/link'
 import './intelligence-summary.css'
 
 type RecordValue = Record<string, unknown>
-export type IntelligenceResult = { state: 'available'; data: RecordValue } | { state: 'unavailable'; reason: string }
+export type IntelligenceResult = { state: 'available'; data: RecordValue } | { state: 'not_started' } | { state: 'unavailable'; reason: string }
 
 const object = (value: unknown): RecordValue => value && typeof value === 'object' && !Array.isArray(value) ? value as RecordValue : {}
 const list = (value: unknown): unknown[] => Array.isArray(value) ? value : []
@@ -26,9 +26,13 @@ function count(value: unknown, keys: string[]) {
 }
 
 export function IntelligenceSummary({ result }: { result: IntelligenceResult }) {
+  if (result.state === 'not_started') return <section className="intelligence" aria-labelledby="intelligence-title">
+    <div className="intelligence-heading"><span className="site-phase">Next step</span><h2 id="intelligence-title">Business intelligence</h2></div>
+    <p role="status">Intelligence appears after intake and research. Continue with the intake below to get started.</p>
+  </section>
   if (result.state === 'unavailable') return <section className="intelligence" aria-labelledby="intelligence-title">
     <div className="intelligence-heading"><span className="site-phase">Intelligence unavailable</span><h2 id="intelligence-title">Business intelligence</h2></div>
-    <p role="status">Your intelligence could not be loaded. {result.reason}</p>
+    <p role="status">Your intelligence is temporarily unavailable. {result.reason.replace(/\b(?:HTTP\s*)?\d{3}\b/gi, 'the service')}</p>
   </section>
 
   const data = result.data
