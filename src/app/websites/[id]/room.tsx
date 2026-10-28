@@ -2,6 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 
+import type { IntelligenceSummary } from '@/lib/intelligence'
+
 type Recommendation = {
   id: number
   title: string
@@ -46,10 +48,12 @@ export function WebsiteRoom({
   website,
   bootstrap,
   initialRecommendations,
+  intelligence,
 }: {
   website: { id: string; name: string; phase?: string; workerUrl?: string | null; adminUrl?: string | null; tenantId?: string | null }
   bootstrap: BootstrapState
   initialRecommendations: Recommendation[]
+  intelligence: IntelligenceSummary
 }) {
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState<{ role: string; text: string }[]>([])
@@ -256,6 +260,36 @@ export function WebsiteRoom({
       <h2>First, the brief.</h2>
       <p>Ada listens before she builds. When there is a structural or visual choice, she will put it here instead of deciding alone.</p>
       {recommendations.map((recommendation) => <div className="recommendation" key={recommendation.id}><strong>{recommendation.title}</strong><p>{recommendation.summary}</p><button type="button" disabled={busy} onClick={() => accept(recommendation)}>{recommendation.action_label || 'Approve this step'} →</button></div>)}
+      <IntelligencePanel intelligence={intelligence} />
     </aside>
   </div>
+}
+
+function IntelligencePanel({ intelligence }: { intelligence: IntelligenceSummary }) {
+  const available = intelligence.state === 'available'
+  return <section style={{ marginTop: 22, borderTop: '1px solid var(--line)', paddingTop: 16 }}>
+    <span className="site-phase">Intelligence</span>
+    <h2>What we know about the business.</h2>
+    {!available ? <p>{intelligence.state === 'not_started'
+      ? intelligence.reason || 'Research has not started for this website yet.'
+      : `Intelligence is unavailable right now: ${intelligence.reason || 'the workspace could not be read'}.`}</p> : <>
+      {intelligence.business.length > 0 ? <dl style={{ display: 'grid', gap: 8 }}>
+        {intelligence.business.map((fact) => <div key={fact.label}>
+          <dt style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', opacity: .7 }}>{fact.label}</dt>
+          <dd style={{ margin: 0 }}>{fact.value}</dd>
+        </div>)}
+      </dl> : <p>No accepted business facts are recorded yet. They appear here once intake or research confirms them.</p>}
+      <p style={{ marginTop: 12 }}>
+        {intelligence.research
+          ? <><strong>{intelligence.research.title}</strong>{intelligence.research.period ? ` · ${intelligence.research.period}` : ''}{intelligence.research.status ? ` · ${intelligence.research.status}` : ''}<br />{intelligence.research.sources != null ? `${intelligence.research.sources} sources · ` : ''}{intelligence.research.findings != null ? `${intelligence.research.findings} findings` : 'finding count unknown'}</>
+          : 'No research report has been recorded yet.'}
+      </p>
+      <p>
+        Questions: {intelligence.coverage.covered} covered, {intelligence.coverage.unresolved} unresolved · Actions: {intelligence.actions.open} open of {intelligence.actions.total}
+      </p>
+      <p>
+        Answer-engine visibility: {intelligence.visibility.state === 'unknown' ? 'unknown — no authorized export imported' : `${intelligence.visibility.surfaces} surface${intelligence.visibility.surfaces === 1 ? '' : 's'}`}
+      </p>
+    </>}
+  </section>
 }

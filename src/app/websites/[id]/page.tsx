@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 
 import { currentUser } from '@/lib/auth'
 import { ownedWebsite, siteAgentRequest } from '@/lib/website'
+import { normalizeIntelligence } from '@/lib/intelligence'
 import { WebsiteRoom } from './room'
 
 export default async function WebsitePage({ params }: { params: Promise<{ id: string }> }) {
@@ -35,8 +36,13 @@ export default async function WebsitePage({ params }: { params: Promise<{ id: st
     label: bootstrapJob?.step === 'ready' ? 'Workspace ready' : 'Opening your workspace',
     diagnostic: String(bootstrapJob?.diagnostic || ''),
   }
+  let intelligence = normalizeIntelligence({ state: 'not_started', reason: 'website has no workspace yet' })
   let recommendations: Array<{ id: number; title: string; summary: string; action_label: string }> = []
   if (roomWebsite.tenantId) {
+    const intelligenceResponse = await siteAgentRequest(roomWebsite.tenantId, '/intelligence')
+    if (intelligenceResponse.ok || intelligenceResponse.status === 503) {
+      intelligence = normalizeIntelligence(await intelligenceResponse.json().catch(() => ({})))
+    }
     const response = await siteAgentRequest(roomWebsite.tenantId, '/design/recommendations')
     if (response.ok) {
       const body = await response.json() as { recommendations?: Array<{ id: number; title: string; summary: string; action_label: string }> }
@@ -49,7 +55,7 @@ export default async function WebsitePage({ params }: { params: Promise<{ id: st
       <nav className="app-header"><Link className="wordmark" href="/portfolio"><span className="wordmark-mark">A</span>HelloAda</Link><Link className="text-link" href="/portfolio">All websites ↗</Link></nav>
       <div className="app-main">
         <div className="app-intro"><div><div className="eyebrow"><span className="eyebrow-dot" /> {website.phase}</div><h1 className="app-heading">{website.name}<br /><em>is taking shape.</em></h1></div><p>Tell Ada what matters. She will keep the brief close, show the real site, and pause when there is a meaningful choice.</p></div>
-        <WebsiteRoom website={roomWebsite} bootstrap={bootstrap} initialRecommendations={recommendations} />
+        <WebsiteRoom website={roomWebsite} bootstrap={bootstrap} initialRecommendations={recommendations} intelligence={intelligence} />
       </div>
     </main>
   )
