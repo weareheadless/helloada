@@ -10,7 +10,7 @@ export const Users: CollectionConfig = {
   // session alive without weakening anything else.
   auth: {
     tokenExpiration: 60 * 60 * 24 * 30,
-    cookies: { sameSite: 'Lax', secure: true, maxAge: 60 * 60 * 24 * 30 },
+    cookies: { sameSite: 'Lax', secure: true },
   },
   access: {
     create: () => true,
