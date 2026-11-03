@@ -2,6 +2,7 @@
 
 import { FormEvent, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import './github-provisioning.css'
 
 const pendingKeyStorage = 'helloada.pendingWebsiteCreation'
 
@@ -103,7 +104,7 @@ export function CreateWebsiteForm({ allowGithub = false }: { allowGithub?: boole
       const result = await response.json().catch(() => ({})) as { id?: string; error?: string }
       if (!response.ok || !result.id) {
         setError(result.error === 'idempotency_conflict'
-          ? 'This create request was already used for a different name. Start a new request.'
+          ? 'This create request was already used for a different name or repository. Start a new request.'
           : result.error === 'github_repository_invalid'
             ? 'Use a weareheadless repository name or its GitHub URL, without a branch or token.'
             : result.error === 'operator_required'
@@ -131,8 +132,10 @@ export function CreateWebsiteForm({ allowGithub = false }: { allowGithub?: boole
         <h2>Create a website</h2>
         <p>{allowGithub ? 'Name the website and connect its GitHub repository to prepare its management workspace without intake.' : 'Give it a name. Ada will prepare its admin workspace, where you can start shaping the business and first page.'}</p>
       </div>
-      <form className="create-form" onSubmit={submit}>
-        <input aria-label="Website name" placeholder="Name the website" value={name} onChange={(event) => setName(event.target.value)} required maxLength={120} />
+      <form className={'create-form' + (allowGithub ? ' github-provisioning' : '')} onSubmit={submit}>
+        {allowGithub ? <label>Website name
+          <input aria-label="Website name" placeholder="Name the website" value={name} onChange={(event) => setName(event.target.value)} required maxLength={120} disabled={busy} />
+        </label> : <input aria-label="Website name" placeholder="Name the website" value={name} onChange={(event) => setName(event.target.value)} required maxLength={120} disabled={busy} />}
         {allowGithub && <label>GitHub repository (optional)
           <input aria-label="GitHub repository (optional)" placeholder="weareheadless/your-repository" value={githubRepository} onChange={(event) => setGithubRepository(event.target.value)} maxLength={180} disabled={busy} />
           <small>Uses the repository’s main branch. Leave blank to start with intake.</small>
