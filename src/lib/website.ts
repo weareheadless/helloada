@@ -49,15 +49,19 @@ export async function siteAgentRequest(tenantId: string, path: string, init: Req
   }
 }
 
+export { normalizeGithubRepository } from './github-provisioning.ts'
+
 export function registerWebsiteTenant(
   tenantId: string,
   displayName: string,
   identity?: HelloAdaIntelligenceIdentity,
+  githubRepository?: string,
 ) {
   return siteAgentRequest(tenantId, '/register', {
     method: 'POST',
     body: JSON.stringify({
       display_name: displayName,
+      ...(githubRepository ? { github_repository: githubRepository } : {}),
       ...(identity ? {
         external_organization_id: identity.externalOrganizationId,
         owner_subject: identity.ownerSubject,
@@ -143,10 +147,10 @@ export function canonicalIntelligenceReceipt(
   }
 }
 
-export function startWebsiteBootstrap(tenantId: string, displayName: string) {
+export function startWebsiteBootstrap(tenantId: string, displayName: string, githubRepository?: string) {
   return siteAgentRequest(tenantId, '/bootstrap', {
     method: 'POST',
-    body: JSON.stringify({ display_name: displayName }),
+    body: JSON.stringify({ display_name: displayName, ...(githubRepository ? { github_repository: githubRepository } : {}) }),
   })
 }
 

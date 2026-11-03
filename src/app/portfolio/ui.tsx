@@ -73,9 +73,10 @@ export function WebsiteVisibility({ id, name, removed }: { id: string; name: str
   )
 }
 
-export function CreateWebsiteForm() {
+export function CreateWebsiteForm({ allowGithub = false }: { allowGithub?: boolean }) {
   const router = useRouter()
   const [name, setName] = useState('')
+  const [githubRepository, setGithubRepository] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const requestKey = useRef<string | null>(null)
@@ -97,13 +98,17 @@ export function CreateWebsiteForm() {
           'content-type': 'application/json',
           'idempotency-key': key,
         },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, github_repository: githubRepository }),
       })
       const result = await response.json().catch(() => ({})) as { id?: string; error?: string }
       if (!response.ok || !result.id) {
         setError(result.error === 'idempotency_conflict'
           ? 'This create request was already used for a different name. Start a new request.'
-          : 'The website could not be prepared yet. Your request is safe to retry.')
+          : result.error === 'github_repository_invalid'
+            ? 'Use a weareheadless repository name or its GitHub URL, without a branch or token.'
+            : result.error === 'operator_required'
+              ? 'Connecting a GitHub repository requires a platform administrator.'
+              : 'The website could not be prepared yet. Your request is safe to retry.')
         if (result.error === 'idempotency_conflict') {
           const nextKey = window.crypto.randomUUID()
           window.sessionStorage.setItem(pendingKeyStorage, nextKey)
@@ -124,10 +129,14 @@ export function CreateWebsiteForm() {
     <section className="create-card">
       <div>
         <h2>Create a website</h2>
-        <p>Give it a name. Ada will prepare its admin workspace, where you can start shaping the business and first page.</p>
+        <p>{allowGithub ? 'Name the website and connect its GitHub repository to prepare its management workspace without intake.' : 'Give it a name. Ada will prepare its admin workspace, where you can start shaping the business and first page.'}</p>
       </div>
       <form className="create-form" onSubmit={submit}>
         <input aria-label="Website name" placeholder="Name the website" value={name} onChange={(event) => setName(event.target.value)} required maxLength={120} />
+        {allowGithub && <label>GitHub repository (optional)
+          <input aria-label="GitHub repository (optional)" placeholder="weareheadless/your-repository" value={githubRepository} onChange={(event) => setGithubRepository(event.target.value)} maxLength={180} disabled={busy} />
+          <small>Uses the repository’s main branch. Leave blank to start with intake.</small>
+        </label>}
         <button className="button button-primary" type="submit" disabled={busy}>
           {busy ? 'Preparing…' : 'Create website'} <span aria-hidden="true">→</span>
         </button>

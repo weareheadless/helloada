@@ -5,7 +5,9 @@ import { currentUser } from '@/lib/auth'
 import { isBootstrapStatus, isBootstrapStep } from '@/lib/bootstrap-contract'
 import { helloAdaIntelligenceIdentity } from '@/lib/intelligence-identity'
 import { tenantAdminUrl } from '@/lib/tenant-admin'
-import { canonicalIntelligenceReceipt, registerWebsiteTenant, resolveOrCreateOwnerWebsite, startWebsiteBootstrap } from '@/lib/website'
+import { isPlatformAdmin } from '@/lib/platform-admin'
+import { provisioningPhase, matchesGithubSource } from '@/lib/github-provisioning'
+import { canonicalIntelligenceReceipt, normalizeGithubRepository, registerWebsiteTenant, resolveOrCreateOwnerWebsite, startWebsiteBootstrap } from '@/lib/website'
 
 export async function POST(request: Request) {
   const auth = await currentUser(await headers())
@@ -15,9 +17,12 @@ export async function POST(request: Request) {
   if (!/^[0-9a-f-]{36}$/i.test(requestKey)) {
     return NextResponse.json({ error: 'idempotency_key_required' }, { status: 400 })
   }
-  const body = await request.json().catch(() => null) as { name?: string } | null
+  const body = await request.json().catch(() => null) as { name?: string; github_repository?: unknown } | null
   const name = String(body?.name || '').trim().slice(0, 120)
   if (!name) return NextResponse.json({ error: 'name_required' }, { status: 400 })
+  const githubRepository = normalizeGithubRepository(body?.github_repository)
+  if (githubRepository === null) return NextResponse.json({ error: 'github_repository_invalid' }, { status: 400 })
+  if (githubRepository && !isPlatformAdmin(auth.user)) return NextResponse.json({ error: 'operator_required' }, { status: 403 })
 
   const requestedIdentity = await helloAdaIntelligenceIdentity(String(auth.user.id), requestKey)
   const websiteResolution = await resolveOrCreateOwnerWebsite(auth.payload as never, auth.req, auth.user.id, requestedIdentity, name)
@@ -35,20 +40,24 @@ export async function POST(request: Request) {
   const bootstrapJob = existingJobs.docs[0] || await auth.payload.create({
     collection: 'bootstrap-jobs',
     req: auth.req,
-    data: { website: website.id, step: 'requested', status: 'queued', retries: 0, resourceReceipts: {}, diagnostic: '' },
+    data: { website: website.id, step: 'requested', status: 'queued', retries: 0, resourceReceipts: { github_repository: githubRepository }, diagnostic: '' },
   })
+  const previousReceipts = bootstrapJob.resourceReceipts && typeof bootstrapJob.resourceReceipts === 'object'
+    ? bootstrapJob.resourceReceipts as Record<string, unknown> : {}
+  if (String(previousReceipts.github_repository || '') !== githubRepository) {
+    return NextResponse.json({ error: 'idempotency_conflict' }, { status: 409 })
+  }
 
-  const registrationResponse = await registerWebsiteTenant(identity.tenantId, name, identity)
+  const registrationResponse = await registerWebsiteTenant(identity.tenantId, name, identity, githubRepository || undefined)
   const registration = await registrationResponse.json().catch(() => ({})) as {
     tenant_id?: string
     schema_version?: number
     status?: string
     intelligence_identity?: unknown
+    provisioning_source?: unknown
   }
   const parsedReceipt = canonicalIntelligenceReceipt(registration, identity)
   const canonicalReceipt = parsedReceipt === 'invalid' ? undefined : parsedReceipt
-  const previousReceipts = bootstrapJob.resourceReceipts && typeof bootstrapJob.resourceReceipts === 'object'
-    ? bootstrapJob.resourceReceipts as Record<string, unknown> : {}
   const previousIntelligence = previousReceipts.intelligence && typeof previousReceipts.intelligence === 'object'
     ? previousReceipts.intelligence as Record<string, unknown> : {}
   const intelligenceReceipt = !canonicalReceipt ? null : {
@@ -62,6 +71,7 @@ export async function POST(request: Request) {
     retry: 'Repeat this owner-scoped create request with the same Idempotency-Key and name.',
   }
   if (!registrationResponse.ok || registration.tenant_id !== identity.tenantId
+    || !matchesGithubSource(registration.provisioning_source, githubRepository)
     || !canonicalReceipt
     || (canonicalReceipt.status === 'registered'
       && ((previousIntelligence.workspaceId && previousIntelligence.workspaceId !== canonicalReceipt.workspaceId)
@@ -89,7 +99,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ id: website.id, error: 'tenant_registration_failed', intelligenceStatus: 'pending' }, { status: 201 })
   }
 
-  const bootstrapResponse = await startWebsiteBootstrap(identity.tenantId, name)
+  const bootstrapResponse = await startWebsiteBootstrap(identity.tenantId, name, githubRepository || undefined)
   const bootstrap = await bootstrapResponse.json().catch(() => ({})) as {
     tenant_id?: string
     status?: string
@@ -97,10 +107,12 @@ export async function POST(request: Request) {
     workspace_ready?: boolean
     website_live?: boolean
     resource_receipts?: Record<string, unknown>
+    provisioning_source?: unknown
   }
   const remoteStep = bootstrap.step
   const remoteStatus = bootstrap.status
   const contractValid = bootstrapResponse.ok
+    && matchesGithubSource(bootstrap.provisioning_source, githubRepository)
     && bootstrap.tenant_id === identity.tenantId
     && isBootstrapStep(remoteStep)
     && isBootstrapStatus(remoteStatus)
@@ -159,6 +171,7 @@ export async function POST(request: Request) {
       step: remoteStep,
       status: failed ? 'failed' : remoteStatus === 'done' ? 'done' : 'running',
       resourceReceipts: {
+        github_repository: githubRepository,
         tenant: { tenantId: identity.tenantId, schemaVersion: registration.schema_version || null },
         // An old Site-Agent may ignore the optional metadata. Pending is never
         // a ready assertion, even when the exact identity echo was received.
@@ -174,7 +187,7 @@ export async function POST(request: Request) {
     id: website.id,
     req: auth.req,
     data: {
-      phase: failed ? 'needs_attention' : 'intake',
+      phase: provisioningPhase(githubRepository, bootstrap),
       workerUrl: workerUrl || undefined,
       adminUrl: adminUrl || undefined,
     },
@@ -182,7 +195,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     id: website.id,
-    phase: failed ? 'needs_attention' : 'intake',
+    phase: provisioningPhase(githubRepository, bootstrap),
     bootstrapJobId: bootstrapJob.id,
     bootstrapStatus: remoteStatus,
     intelligenceStatus: 'pending',

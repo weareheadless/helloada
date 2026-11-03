@@ -69,7 +69,7 @@ export default async function PortfolioPage() {
             )
           })}
         </section>
-        <CreateWebsiteForm />
+        <CreateWebsiteForm allowGithub={administrator} />
         {removedWebsites.length > 0 && (
           <details className="removed-websites">
             <summary>Removed websites ({removedWebsites.length})</summary>
