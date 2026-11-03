@@ -18,7 +18,15 @@ export function provisioningPhase(repository: string, state: { status?: unknown;
 }
 
 export function matchesGithubSource(value: unknown, repository: string): boolean {
-  if (!repository) return true
+  if (!repository) {
+    // Older APIs have no source echo. An explicit static echo, however, must
+    // never be mistaken for an intake request after lost/stale UI receipts.
+    if (value === undefined || value === null) return true
+    if (!value || typeof value !== 'object') return false
+    const source = value as Record<string, unknown>
+    return Object.keys(source).length === 0
+      || (source.kind === 'intake' && source.repository === '' && source.branch === 'main')
+  }
   if (!value || typeof value !== 'object') return false
   const source = value as Record<string, unknown>
   return source.kind === 'github_static' && source.repository === repository && source.branch === 'main'

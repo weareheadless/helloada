@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { build } from 'esbuild'
-import { provisioningPhase } from '../src/lib/github-provisioning.ts'
+import { provisioningPhase, matchesGithubSource } from '../src/lib/github-provisioning.ts'
 
 const root = new URL('../', import.meta.url).pathname
 const moduleFor = async (entry) => {
@@ -21,8 +21,8 @@ const moduleFor = async (entry) => {
             : `export { normalizeGithubRepository } from ${JSON.stringify(root + 'src/lib/github-provisioning.ts')};
               export const resolveOrCreateOwnerWebsite = async (_p,_r,_u,identity) => { globalThis.__githubProvision.effects.push('resolve'); return { website: globalThis.__githubProvision.website, identity }; };
               export const canonicalIntelligenceReceipt = () => ({ status: 'pending' });
-              export const registerWebsiteTenant = async (...args) => { globalThis.__githubProvision.effects.push(['register', ...args]); return Response.json({ tenant_id: args[0], provisioning_source: globalThis.__githubProvision.sourceEcho === false ? undefined : { kind: 'github_static', repository: args[3], branch: 'main' } }); };
-              export const startWebsiteBootstrap = async (...args) => { globalThis.__githubProvision.effects.push(['bootstrap', ...args]); return Response.json({ ...globalThis.__githubProvision.remote, tenant_id: args[0], provisioning_source: { kind: 'github_static', repository: args[2], branch: 'main' } }); };
+              export const registerWebsiteTenant = async (...args) => { globalThis.__githubProvision.effects.push(['register', ...args]); return Response.json({ tenant_id: args[0], provisioning_source: globalThis.__githubProvision.sourceEcho === false ? undefined : { kind: args[3] ? 'github_static' : 'intake', repository: args[3] || '', branch: 'main' } }); };
+              export const startWebsiteBootstrap = async (...args) => { globalThis.__githubProvision.effects.push(['bootstrap', ...args]); return Response.json({ ...globalThis.__githubProvision.remote, tenant_id: args[0], provisioning_source: { kind: args[2] ? 'github_static' : 'intake', repository: args[2] || '', branch: 'main' } }); };
               export const websiteBootstrapStatus = async () => Response.json(globalThis.__githubProvision.remote);
               export const ownedWebsite = async () => globalThis.__githubProvision.website;`,
         resolveDir: root, loader: 'ts',
@@ -125,4 +125,6 @@ test('phase requires exact independent workspace and public-site readiness', () 
   assert.equal(provisioningPhase('weareheadless/x', { workspace_ready: true, website_live: false }), 'designing')
   assert.equal(provisioningPhase('weareheadless/x', { workspace_ready: true, website_live: true }), 'live')
   assert.equal(provisioningPhase('', { workspace_ready: true, website_live: true }), 'intake')
+  assert.equal(matchesGithubSource({ kind: 'github_static', repository: 'weareheadless/x', branch: 'main' }, ''), false)
+  assert.equal(matchesGithubSource(undefined, ''), true)
 })
