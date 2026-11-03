@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { currentUser } from '@/lib/auth'
 import { bootstrapStepLabels, isBootstrapStatus, isBootstrapStep } from '@/lib/bootstrap-contract'
 import { tenantAdminUrl } from '@/lib/tenant-admin'
+import { provisioningPhase, matchesGithubSource } from '@/lib/github-provisioning'
 import { ownedWebsite, startWebsiteBootstrap, websiteBootstrapStatus } from '@/lib/website'
 
 function workerUrlFrom(receipts: Record<string, unknown>) {
@@ -41,6 +42,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     depth: 0,
   })
   const job = jobs.docs[0]
+  const sourceReceipts = job?.resourceReceipts && typeof job.resourceReceipts === 'object' ? job.resourceReceipts as Record<string, unknown> : {}
+  const repository = String(sourceReceipts.github_repository || '')
   if (!website.tenantId) return NextResponse.json({ error: 'tenant_identity_missing' }, { status: 409 })
 
   const remoteResponse = await websiteBootstrapStatus(String(website.tenantId))
@@ -56,6 +59,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const step = String(remote.step || '')
   if (
     remote.tenant_id !== website.tenantId
+    || !matchesGithubSource(remote.provisioning_source, repository)
     || !isBootstrapStatus(status)
     || !isBootstrapStep(step)
     || typeof remote.workspace_ready !== 'boolean'
@@ -81,6 +85,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       data: {
         workerUrl: workerUrl || undefined,
         adminUrl,
+        phase: provisioningPhase(repository, remote),
       },
     })
   }
@@ -88,7 +93,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return NextResponse.json({
     website: {
       id: website.id,
-      phase: website.phase,
+      phase: workspaceReady ? provisioningPhase(repository, remote) : website.phase,
       adminUrl,
     },
     bootstrap: {
@@ -129,7 +134,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     data: { website: website.id, step: 'requested', status: 'queued', retries: 0, resourceReceipts: {}, diagnostic: '' },
   })
 
-  const response = await startWebsiteBootstrap(String(website.tenantId), String(website.name || website.tenantId))
+  const previousReceipts = job.resourceReceipts && typeof job.resourceReceipts === 'object' ? job.resourceReceipts as Record<string, unknown> : {}
+  const pinnedRepository = typeof previousReceipts.github_repository === 'string' ? previousReceipts.github_repository : ''
+  const response = await startWebsiteBootstrap(String(website.tenantId), String(website.name || website.tenantId), pinnedRepository || undefined)
   const state = await response.json().catch(() => null) as Record<string, unknown> | null
   if (!response.ok || !state) {
     await auth.payload.update({
@@ -144,6 +151,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const step = String(state.step || '')
   if (
     state.tenant_id !== website.tenantId
+    || !matchesGithubSource(state.provisioning_source, pinnedRepository)
     || !isBootstrapStatus(status)
     || !isBootstrapStep(step)
     || typeof state.workspace_ready !== 'boolean'
@@ -176,7 +184,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     id: website.id,
     req: auth.req,
     data: {
-      phase: failed ? 'needs_attention' : 'intake',
+      phase: provisioningPhase(pinnedRepository, state),
       workerUrl: workerUrl || undefined,
       adminUrl: adminUrl || undefined,
     },

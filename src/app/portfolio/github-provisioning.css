@@ -1,0 +1,20 @@
+.create-form.github-provisioning {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto;
+  align-items: start;
+  gap: 14px;
+}
+.github-provisioning label {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  color: var(--muted);
+  font-size: .8rem;
+}
+.github-provisioning input { width: 100%; box-sizing: border-box; }
+.github-provisioning small { font-size: .75rem; line-height: 1.5; }
+.github-provisioning > .button { margin-top: 1.7rem; }
+@media (max-width: 800px) {
+  .create-form.github-provisioning { grid-template-columns: minmax(0, 1fr); }
+  .github-provisioning > .button { margin-top: 0; }
+}

@@ -2,9 +2,40 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { helloAdaIntelligenceIdentity, isMatchingIntelligenceIdentity } from '../src/lib/intelligence-identity.ts'
-import { canonicalIntelligenceReceipt, registerWebsiteTenant, resolveOrCreateOwnerWebsite } from '../src/lib/website.ts'
+import { canonicalIntelligenceReceipt, normalizeGithubRepository, registerWebsiteTenant, resolveOrCreateOwnerWebsite, startWebsiteBootstrap } from '../src/lib/website.ts'
 
 const requestKey = '01234567-89ab-cdef-0123-456789abcdef'
+
+test('GitHub repository input accepts only normalized owner/repo forms', () => {
+  assert.equal(normalizeGithubRepository(' weareheadless/site '), 'weareheadless/site')
+  assert.equal(normalizeGithubRepository('https://github.com/weareheadless/site.git'), 'weareheadless/site')
+  assert.equal(normalizeGithubRepository(''), '')
+  assert.equal(normalizeGithubRepository('https://github.com/weareheadless/site'), 'weareheadless/site')
+  for (const input of ['https://GitHub.com/weareheadless/site', 'https://user@github.com/weareheadless/site', 'https://github.com/weareheadless/site?q=x', 'https://github.com/weareheadless/site#main', 'https://github.com/weareheadless/site/tree/main', 'github.com/weareheadless/site', 'other/site', 'weareheadless/../x', 'weareheadless/.hidden', 'weareheadless/x.', 'weareheadless/x..y', null, 42]) {
+    assert.equal(normalizeGithubRepository(input), null, String(input))
+  }
+})
+
+test('registration and bootstrap forward the same normalized repository', async () => {
+  const previousFetch = globalThis.fetch
+  const previousUrl = process.env.SITE_AGENT_URL
+  const previousToken = process.env.HELLOADA_CONTROL_PLANE_TOKEN
+  const calls = []
+  process.env.SITE_AGENT_URL = 'https://agent.example'
+  process.env.HELLOADA_CONTROL_PLANE_TOKEN = 'test-token'
+  globalThis.fetch = async (_url, init) => { calls.push(JSON.parse(init.body)); return Response.json({}) }
+  try {
+    await registerWebsiteTenant('tenant', 'Site', undefined, 'weareheadless/repo')
+    await startWebsiteBootstrap('tenant', 'Site', 'weareheadless/repo')
+    assert.deepEqual(calls.map(call => call.github_repository), ['weareheadless/repo', 'weareheadless/repo'])
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousUrl === undefined) delete process.env.SITE_AGENT_URL
+    else process.env.SITE_AGENT_URL = previousUrl
+    if (previousToken === undefined) delete process.env.HELLOADA_CONTROL_PLANE_TOKEN
+    else process.env.HELLOADA_CONTROL_PLANE_TOKEN = previousToken
+  }
+})
 
 test('intelligence identity is stable for an owner request and independent of names', async () => {
   const first = await helloAdaIntelligenceIdentity('42', requestKey)
