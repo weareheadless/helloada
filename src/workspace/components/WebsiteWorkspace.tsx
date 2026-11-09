@@ -22,6 +22,7 @@ import { canSendChatAttachments, remainingChatAttachmentSlots, splitChatImageFil
 import { useHelloAdaSite } from '../config/provider'
 import { HelloAdaMark } from './HelloAdaLogo'
 import { WorkspaceIcon } from './WorkspaceIcon'
+import { WorkspacePagePicker } from './WorkspacePagePicker'
 import { responseMessage } from '../api/response-message'
 
 type WorkspaceDocument = {
@@ -2292,19 +2293,16 @@ function ReviewWorkspace() {
                  <WorkspaceIcon name="desktop" size={16} />
                </button>
             </div>
-            <label className="helloada-page-control">
-               <span className="helloada-sr-only">{t('workspace.visiblePage')}</span>
-                  <select aria-label={t('workspace.visiblePage')} value={selectedRoute} disabled={adaPhase === 'unknown'} onChange={(event) => {
-                    setPreviewStatus('refreshing')
-                    setSelectedRoute(event.target.value)
-                  }}>
-                {(workspace?.routes || []).map((route) => (
-                  <option key={`${route.path}:${route.sourceId}`} value={route.path}>
-                     {routeLabel(route, t('workspace.home'))}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <WorkspacePagePicker
+              routes={workspace?.routes || []}
+              value={selectedRoute}
+              homeLabel={t('workspace.home')}
+              disabled={adaPhase === 'unknown'}
+              onSelect={(path) => {
+                setPreviewStatus('refreshing')
+                setSelectedRoute(path)
+              }}
+            />
             <button
               className="helloada-history-trigger"
               type="button"

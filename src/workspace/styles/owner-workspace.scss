@@ -205,7 +205,42 @@
   .helloada-owner-workspace .helloada-segmented button.is-selected { background: var(--helloada-inset); color: var(--helloada-ink); transform: none; }
   .helloada-owner-workspace .helloada-segmented button:hover { background: var(--helloada-inset); color: var(--helloada-ink); transform: none; }
   .helloada-owner-workspace .helloada-page-control { order: 0; padding: 0; }
-  .helloada-owner-workspace .helloada-page-control select { min-height: 32px; width: auto; min-width: 90px; max-width: 170px; padding: 0 25px 0 10px; border-color: var(--helloada-soft-line); border-radius: 8px; background: transparent; font-size: 11px; font-weight: 400; color: var(--helloada-ink); }
+  .helloada-owner-workspace .helloada-page-picker-trigger { min-height: 32px; min-width: 90px; max-width: 170px; padding: 0 10px; border-color: var(--helloada-soft-line); border-radius: 8px; background: transparent; font-size: 11px; font-weight: 400; color: var(--helloada-ink); }
+  .helloada-page-picker-dialog {
+    width: min(620px, calc(100vw - 28px));
+    max-width: 620px;
+    max-height: min(720px, calc(100dvh - 48px));
+    margin: auto;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--helloada-line);
+    border-radius: 20px;
+    background: var(--helloada-panel);
+    color: var(--helloada-ink);
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.42);
+  }
+  .helloada-page-picker-dialog::backdrop { background: rgba(8, 7, 6, 0.62); backdrop-filter: blur(6px); }
+  .helloada-page-picker { display: flex; flex-direction: column; max-height: inherit; }
+  .helloada-page-picker-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 20px 12px; }
+  .helloada-page-picker-header h2 { margin: 4px 0 0; font-size: 18px; line-height: 1.2; font-weight: 550; letter-spacing: -0.025em; }
+  .helloada-page-picker-kicker { color: var(--helloada-muted); font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+  .helloada-page-picker-close { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--helloada-inset); color: var(--helloada-muted); cursor: pointer; }
+  .helloada-page-picker-close:hover { color: var(--helloada-ink); }
+  .helloada-page-picker-search { display: flex; align-items: center; gap: 9px; margin: 0 20px 12px; padding: 0 12px; border: 1px solid var(--helloada-line); border-radius: 11px; background: var(--helloada-inset); color: var(--helloada-muted); }
+  .helloada-page-picker-search input { flex: 1; min-width: 0; height: 42px; padding: 0; border: 0; outline: none; background: transparent; color: var(--helloada-ink); font: inherit; font-size: 13px; }
+  .helloada-page-picker-search input::placeholder { color: var(--helloada-dim); }
+  .helloada-page-picker-results { flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 8px; }
+  .helloada-page-picker-group { padding: 8px 8px 4px; }
+  .helloada-page-picker-group h3 { display: flex; align-items: center; justify-content: space-between; margin: 0; padding: 6px 8px; color: var(--helloada-muted); font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .helloada-page-picker-group h3 span { font-variant-numeric: tabular-nums; letter-spacing: 0; }
+  .helloada-page-picker-option { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; width: 100%; padding: 9px 10px; border: 0; border-radius: 9px; background: transparent; color: var(--helloada-ink); text-align: left; cursor: pointer; }
+  .helloada-page-picker-option:hover, .helloada-page-picker-option.is-active { background: var(--helloada-inset); }
+  .helloada-page-picker-option.is-current { box-shadow: inset 0 0 0 1px var(--helloada-soft-line); }
+  .helloada-page-picker-option-label { grid-column: 1; overflow: hidden; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+  .helloada-page-picker-option-path { grid-column: 1; overflow: hidden; color: var(--helloada-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .helloada-page-picker-option-current { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--helloada-muted); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .helloada-page-picker-empty { padding: 28px 20px; color: var(--helloada-muted); font-size: 12px; text-align: center; }
+  .helloada-page-picker-footer { display: flex; justify-content: space-between; gap: 12px; padding: 11px 20px 14px; border-top: 1px solid var(--helloada-soft-line); color: var(--helloada-muted); font-size: 10px; }
   .helloada-preview-options { position: relative; flex-shrink: 0; }
   .helloada-preview-options summary { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; list-style: none; cursor: pointer; color: var(--helloada-muted); }
   .helloada-preview-options summary::-webkit-details-marker { display: none; }
@@ -300,7 +335,7 @@
     .helloada-owner-workspace .helloada-workspace-grid { grid-template-columns: 330px minmax(0, 1fr); }
     .helloada-owner-workspace .helloada-review-toolbar { padding: 12px; gap: 8px; }
     .helloada-owner-workspace .helloada-window-title { display: none; }
-    .helloada-owner-workspace .helloada-page-control select { max-width: 120px; }
+    .helloada-owner-workspace .helloada-page-picker-trigger { max-width: 120px; }
   }
   @media (max-width: 900px) {
     .template-default .nav { width: calc(100% - 28px); }
@@ -318,7 +353,7 @@
     .helloada-owner-workspace.shows-ada .helloada-review-window, .helloada-owner-workspace.shows-ada .helloada-build-surface, .helloada-owner-workspace.shows-website .helloada-ada-panel { display: none; }
     .helloada-owner-workspace .is-chat-only .helloada-ada-panel { display: flex; }
     .helloada-owner-workspace .helloada-window-title { display: flex; }
-    .helloada-owner-workspace .helloada-page-control select { max-width: 170px; }
+    .helloada-owner-workspace .helloada-page-picker-trigger { max-width: 170px; }
     .helloada-owner-welcome { padding-top: 20px; }
     .helloada-owner-welcome h2 { max-width: none; }
     .helloada-owner-welcome p { max-width: 370px; }
@@ -340,7 +375,12 @@
     .helloada-owner-workspace .helloada-review-toolbar { gap: 7px; }
     .helloada-owner-workspace .helloada-window-title { display: none; }
     .helloada-owner-workspace .helloada-window-dots { gap: 4px; }
-    .helloada-owner-workspace .helloada-page-control select { max-width: 120px; min-width: 80px; }
+    .helloada-owner-workspace .helloada-page-picker-trigger { max-width: 120px; min-width: 80px; }
+    .helloada-page-picker-dialog { width: calc(100vw - 20px); max-height: calc(100dvh - 32px); border-radius: 16px; }
+    .helloada-page-picker-header { padding: 16px 16px 10px; }
+    .helloada-page-picker-search { margin: 0 16px 10px; }
+    .helloada-page-picker-results { padding: 0 8px 6px; }
+    .helloada-page-picker-footer { padding: 10px 16px 12px; }
     .helloada-owner-workspace .helloada-preview-frame-shell { margin: 8px 8px 0; }
     .helloada-preview-footer { padding-inline: 12px; }
     .helloada-preview-footer > span:last-child { display: none; }
