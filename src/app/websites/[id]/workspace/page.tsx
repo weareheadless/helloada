@@ -100,8 +100,8 @@ export default async function WebsiteWorkspacePage({
           ))}
           {/* Messages and Mailflare live in the tenant Worker with their own
               session. A cross-site iframe cannot carry that cookie, so the
-              control plane opens the tenant surface instead. */}
-          <a href={`${origin}/mail/inbox`} target="_blank" rel="noopener noreferrer">Messages ↗</a>
+              control plane hands the owner into the tenant inbox instead. */}
+          <Link href={`/admin-entry/${tenantId}?next=${encodeURIComponent('/mail/inbox')}`}>Messages ↗</Link>
           <Link className="is-separated" href={`/admin-entry/${tenantId}`}>Manage content ↗</Link>
           <a href={config.routes.liveSite} target="_blank" rel="noopener noreferrer">Open site ↗</a>
         </div>

@@ -4,11 +4,24 @@ import { notFound, redirect } from 'next/navigation'
 import { currentUser } from '@/lib/auth'
 import { websiteScope } from '@/lib/platform-admin'
 import { ProjectEntry } from '@/app/websites/[id]/project-entry'
+import { safeNextPath } from '@/lib/safe-next'
 
 export const dynamic = 'force-dynamic'
 
-export default async function AdminEntryPage({ params }: { params: Promise<{ tenantId: string }> }) {
+export default async function AdminEntryPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tenantId: string }>
+  searchParams: Promise<{ next?: string }>
+}) {
   const { tenantId } = await params
+  let next: string | undefined
+  try {
+    next = safeNextPath((await searchParams).next, '')
+  } catch {
+    next = undefined
+  }
   if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(tenantId)) notFound()
 
   const returnPath = `/admin-entry/${encodeURIComponent(tenantId)}`
@@ -36,7 +49,7 @@ export default async function AdminEntryPage({ params }: { params: Promise<{ ten
       <div className="app-main">
         <div className="eyebrow"><span className="eyebrow-dot" /> secure workspace handoff</div>
         <h1 className="app-heading">Opening {website.name}</h1>
-        <ProjectEntry websiteId={String(website.id)} name={String(website.name || 'your website')} />
+        <ProjectEntry websiteId={String(website.id)} name={String(website.name || 'your website')} next={next || undefined} />
       </div>
     </main>
   )

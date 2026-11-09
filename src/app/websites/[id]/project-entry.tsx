@@ -12,9 +12,9 @@ type BootstrapResponse = {
   bootstrap?: BootstrapState
 }
 
-type HandoffResponse = { token?: string; actionUrl?: string; error?: string }
+type HandoffResponse = { token?: string; actionUrl?: string; next?: string; error?: string }
 
-export function ProjectEntry({ websiteId, name }: { websiteId: string; name: string }) {
+export function ProjectEntry({ websiteId, name, next }: { websiteId: string; name: string; next?: string }) {
   const [state, setState] = useState<EntryState>('checking')
   const [label, setLabel] = useState('Connecting to your website admin')
   const [retrying, setRetrying] = useState(false)
@@ -53,7 +53,7 @@ export function ProjectEntry({ websiteId, name }: { websiteId: string; name: str
           method: 'POST',
           cache: 'no-store',
           headers: { 'content-type': 'application/json' },
-          body: '{}',
+          body: JSON.stringify(next ? { next } : {}),
         })
         const grant = await grantResponse.json().catch(() => ({})) as HandoffResponse
         if (!grantResponse.ok || !grant.token || !grant.actionUrl) {
@@ -71,6 +71,13 @@ export function ProjectEntry({ websiteId, name }: { websiteId: string; name: str
         field.name = 'token'
         field.value = grant.token
         form.append(field)
+        if (grant.next && grant.next !== '/admin') {
+          const destination = document.createElement('input')
+          destination.type = 'hidden'
+          destination.name = 'next'
+          destination.value = grant.next
+          form.append(destination)
+        }
         document.body.append(form)
         form.submit()
         return false
@@ -85,7 +92,7 @@ export function ProjectEntry({ websiteId, name }: { websiteId: string; name: str
       setLabel(duringHandoff ? 'Secure sign-in could not finish. Try opening the workspace again.' : 'Connection interrupted. Checking again…')
       return !duringHandoff
     }
-  }, [name, websiteId])
+  }, [name, next, websiteId])
 
   useEffect(() => {
     let active = true

@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { currentUser } from '@/lib/auth'
 import { tenantAdminUrl } from '@/lib/tenant-admin'
 import { issueOwnerHandoff } from '@/lib/owner-handoff'
+import { safeNextPath } from '@/lib/safe-next'
 import { ownedWebsite, websiteBootstrapStatus } from '@/lib/website'
 
 export const dynamic = 'force-dynamic'
@@ -19,6 +20,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!auth) return NextResponse.json({ error: 'authentication_required' }, { status: 401, headers: noStore })
 
   const { id } = await params
+  const body = await request.json().catch(() => ({})) as { next?: unknown }
+  let next: string
+  try {
+    next = safeNextPath(body.next)
+  } catch {
+    return NextResponse.json({ error: 'next_path_invalid' }, { status: 400, headers: noStore })
+  }
   const website = await ownedWebsite(auth, id)
   if (!website) return NextResponse.json({ error: 'website_not_found' }, { status: 404, headers: noStore })
   const tenantId = String(website.tenantId || '')
@@ -58,6 +66,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({
       token,
       actionUrl: new URL('/api/helloada/handoff', verifiedAdmin).toString(),
+      next,
     }, { headers: noStore })
   } catch {
     return NextResponse.json({ error: 'owner_handoff_not_configured' }, { status: 503, headers: noStore })
