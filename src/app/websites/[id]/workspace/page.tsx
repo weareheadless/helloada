@@ -89,6 +89,10 @@ export default async function WebsiteWorkspacePage({
     { view: 'growth', label: 'Growth', href: `/websites/${id}/workspace?view=growth` },
     { view: 'gallery', label: 'Gallery', href: `/websites/${id}/workspace?view=gallery` },
     { view: 'history', label: 'History', href: `/websites/${id}/workspace?view=history` },
+    { view: 'messages', label: 'Messages', href: `/websites/${id}/workspace?view=messages` },
+    ...(config.features.bookings
+      ? [{ view: 'calendar', label: 'Calendar', href: `/websites/${id}/workspace?view=calendar` }]
+      : []),
   ]
 
   return (
@@ -105,10 +109,8 @@ export default async function WebsiteWorkspacePage({
               {item.label}
             </Link>
           ))}
-          {/* Messages and Mailflare live in the tenant Worker with their own
-              session. A cross-site iframe cannot carry that cookie, so the
-              control plane hands the owner into the tenant inbox instead. */}
-          <Link href={`/admin-entry/${tenantId}?next=${encodeURIComponent('/mail/inbox')}`}>Messages ↗</Link>
+          {/* Messages is a control-plane view backed by the tenant mailbox
+              bridge. The tenant admin remains for advanced content work. */}
           <Link className="is-separated" href={`/admin-entry/${tenantId}`}>Manage content ↗</Link>
           <a href={config.routes.liveSite} target="_blank" rel="noopener noreferrer">Open site ↗</a>
         </div>

@@ -1,0 +1,350 @@
+/* Integrated Messages: the tenant mailbox rendered inside the control plane.
+   The two-pane rhythm matches the workspace: list, reading pane, composer. */
+
+.helloada-mail {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  box-sizing: border-box;
+  width: 100%;
+  height: calc(100vh - 58px);
+  min-height: 520px;
+  overflow: hidden;
+  border-top: 1px solid var(--helloada-soft-line);
+  background: var(--helloada-bg);
+  color: var(--helloada-ink);
+}
+
+.helloada-mail-list,
+.helloada-mail-reader {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.helloada-mail-list {
+  border-right: 1px solid var(--helloada-soft-line);
+  background: var(--helloada-panel-soft);
+}
+
+.helloada-mail-reader {
+  background: var(--helloada-panel);
+}
+
+.helloada-mail-header,
+.helloada-mail-reader-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 22px 14px;
+  border-bottom: 1px solid var(--helloada-soft-line);
+}
+
+.helloada-mail-header h1,
+.helloada-mail-reader-header h2 {
+  margin: 2px 0 0;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.helloada-mail-reader-header h2 {
+  font-size: 1.15rem;
+}
+
+.helloada-mail-eyebrow {
+  margin: 0;
+  color: var(--helloada-dim);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.helloada-mail-address {
+  margin: 0;
+  padding: 10px 22px;
+  border-bottom: 1px solid var(--helloada-soft-line);
+  color: var(--helloada-muted);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.72rem;
+}
+
+.helloada-mail-button {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid var(--helloada-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--helloada-ink);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.helloada-mail-button:hover:not(:disabled) {
+  background: var(--helloada-hover);
+}
+
+.helloada-mail-button.is-primary {
+  border-color: transparent;
+  background: var(--helloada-accent);
+  color: var(--helloada-accent-ink);
+}
+
+.helloada-mail-button:disabled {
+  cursor: progress;
+  opacity: 0.55;
+}
+
+.helloada-mail-rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.helloada-mail-row {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 4px;
+  padding: 13px 22px;
+  border: 0;
+  border-bottom: 1px solid var(--helloada-soft-line);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.helloada-mail-row:hover,
+.helloada-mail-row.is-active {
+  background: var(--helloada-hover);
+}
+
+.helloada-mail-row.is-unread .helloada-mail-subject,
+.helloada-mail-row.is-unread .helloada-mail-sender {
+  font-weight: 700;
+}
+
+.helloada-mail-row-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.helloada-mail-sender {
+  overflow: hidden;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.helloada-mail-date {
+  flex: 0 0 auto;
+  color: var(--helloada-dim);
+  font-size: 0.66rem;
+}
+
+.helloada-mail-subject {
+  overflow: hidden;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.helloada-mail-subject em {
+  margin-left: 6px;
+  color: var(--helloada-dim);
+  font-size: 0.66rem;
+  font-style: normal;
+}
+
+.helloada-mail-snippet {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--helloada-muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.helloada-mail-thread {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 22px;
+}
+
+.helloada-mail-message {
+  max-width: 72ch;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--helloada-soft-line);
+  border-radius: 14px;
+  background: var(--helloada-panel-soft);
+}
+
+.helloada-mail-message.is-outbound {
+  margin-left: auto;
+  background: var(--helloada-warm);
+}
+
+.helloada-mail-message header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 0.72rem;
+}
+
+.helloada-mail-message header span {
+  color: var(--helloada-dim);
+}
+
+.helloada-mail-message p {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.helloada-mail-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.helloada-mail-attachments a {
+  padding: 5px 9px;
+  border: 1px solid var(--helloada-soft-line);
+  border-radius: 8px;
+  font-size: 0.7rem;
+  text-decoration: none;
+}
+
+.helloada-mail-compose {
+  padding: 16px 22px 20px;
+  border-top: 1px solid var(--helloada-soft-line);
+  background: var(--helloada-panel);
+}
+
+.helloada-mail-compose label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--helloada-dim);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.helloada-mail-compose textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--helloada-line);
+  border-radius: 10px;
+  background: var(--helloada-panel-soft);
+  color: var(--helloada-ink);
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.helloada-mail-compose-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  color: var(--helloada-dim);
+  font-size: 0.7rem;
+}
+
+.helloada-mail-empty {
+  margin: 0;
+  padding: 28px 22px;
+  color: var(--helloada-muted);
+  font-size: 0.82rem;
+}
+
+.helloada-mail-error {
+  margin: 12px 22px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--helloada-negative) 40%, transparent);
+  border-radius: 9px;
+  color: var(--helloada-negative);
+  font-size: 0.76rem;
+}
+
+.helloada-mail-sent {
+  margin: 0 22px 12px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--helloada-positive) 40%, transparent);
+  border-radius: 9px;
+  color: var(--helloada-positive);
+  font-size: 0.76rem;
+}
+
+.helloada-mail-calendar {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 22px 28px;
+}
+
+.helloada-mail-day h2 {
+  margin: 20px 0 8px;
+  color: var(--helloada-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.helloada-mail-event {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--helloada-soft-line);
+}
+
+.helloada-mail-event div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.helloada-mail-event strong {
+  font-size: 0.85rem;
+}
+
+.helloada-mail-event span {
+  color: var(--helloada-muted);
+  font-size: 0.72rem;
+}
+
+@media (max-width: 860px) {
+  .helloada-mail {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .helloada-mail-list {
+    border-right: 0;
+    border-bottom: 1px solid var(--helloada-soft-line);
+  }
+
+  .helloada-mail-reader {
+    min-height: 420px;
+  }
+}

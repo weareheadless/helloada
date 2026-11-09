@@ -8,7 +8,7 @@ import { HelloAdaChatMessage } from './HelloAdaChatMessage'
 import { HelloAdaHistory } from './HelloAdaHistory'
 import { HelloAdaGrowth } from './HelloAdaGrowth'
 import { HelloAdaGallery } from './HelloAdaGallery'
-import { MailflarePayloadView } from './MailflarePayloadView'
+import { HelloAdaMail } from './HelloAdaMail'
 import { EditableRichTextEditor } from './EditableRichTextEditor'
 import { PublicationProgress } from './PublicationProgress'
 import { CheckpointHistory } from './CheckpointHistory'
@@ -605,9 +605,8 @@ export function WebsiteWorkspace() {
   if (searchParams.get('view') === 'history') return <HelloAdaHistory />
   if (searchParams.get('view') === 'growth') return <HelloAdaGrowth />
   if (searchParams.get('view') === 'gallery') return <HelloAdaGallery />
-  if (searchParams.get('view') === 'messages') return <MailflarePayloadView />
-  if (searchParams.get('view') === 'calendar' && site.features.bookings) return <MailflarePayloadView surface="calendar" />
-  if (searchParams.get('view') === 'booking-settings') return <MailflarePayloadView surface="booking-settings" />
+  if (searchParams.get('view') === 'messages') return <HelloAdaMail />
+  if (searchParams.get('view') === 'calendar' && site.features.bookings) return <HelloAdaMail surface="calendar" />
   return <ReviewWorkspace />
 }
 
