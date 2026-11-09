@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
 import { ownerWebsiteIntelligence } from '../src/lib/website.ts'
 
-const filename = new URL('../src/app/websites/[id]/intelligence-summary.tsx', import.meta.url).pathname
+const filename = new URL('../src/workspace/components/IntelligenceSummary.tsx', import.meta.url).pathname
 const source = readFileSync(filename, 'utf8')
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText
 const mod = new Module(filename)

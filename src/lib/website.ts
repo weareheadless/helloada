@@ -2,22 +2,31 @@ import type { currentUser } from './auth'
 import type { HelloAdaIntelligenceIdentity } from './intelligence-identity'
 import { isMatchingIntelligenceIdentity, isMatchingRegistrationScope, siteAgentRegistrationReceipt } from './intelligence-identity.ts'
 import { websiteScope } from './platform-admin.ts'
+import { uniqueSiteSlug } from './site-url.ts'
 
-export async function ownedWebsite(auth: Awaited<ReturnType<typeof currentUser>>, id: string) {
+/**
+ * Resolve a website by its owner-facing slug, or by its legacy numeric id so
+ * old links keep working until they are redirected to the slug URL.
+ */
+export async function ownedWebsite(auth: Awaited<ReturnType<typeof currentUser>>, key: string) {
   if (!auth) return null
-  const result = await auth.payload.find({
+  const find = (field: 'slug' | 'id') => auth.payload.find({
     collection: 'websites',
     req: auth.req,
     overrideAccess: false,
     where: {
       and: [
-        { id: { equals: id } },
+        { [field]: { equals: key } },
         websiteScope(auth.user),
       ],
     },
     limit: 1,
   })
-  return result.docs[0] || null
+  const bySlug = await find('slug')
+  if (bySlug.docs[0]) return bySlug.docs[0]
+  if (!/^\d+$/.test(key)) return null
+  const byId = await find('id')
+  return byId.docs[0] || null
 }
 
 export async function siteAgentRequest(tenantId: string, path: string, init: RequestInit = {}) {
@@ -84,7 +93,7 @@ export function matchingLegacyWebsite<T extends { tenantId?: unknown }>(docs: T[
   return matches.length > 1 ? 'ambiguous' : matches[0] || null
 }
 
-type WebsiteRow = { id: number; name?: unknown; tenantId?: unknown }
+type WebsiteRow = { id: number; name?: unknown; slug?: unknown; tenantId?: unknown }
 type WebsiteCreatePayload = {
   find(args: Record<string, unknown>): Promise<{ docs: Array<Record<string, unknown>> }>
   create(args: Record<string, unknown>): Promise<WebsiteRow>
@@ -116,8 +125,14 @@ export async function resolveOrCreateOwnerWebsite(
   if (website && String(website.name || '') !== name) return { error: 'idempotency_conflict' as const }
   if (!website) {
     try {
+      // The URL label is derived from the name and owned by the owner; the
+      // tenant id stays the immutable runtime identity behind it.
+      const slug = await uniqueSiteSlug(async (candidate) => {
+        const taken = await payload.find({ collection: 'websites', req, where: { slug: { equals: candidate } }, limit: 1, depth: 0 })
+        return taken.docs.length > 0
+      }, name)
       website = await payload.create({ collection: 'websites', req, data: {
-        name, slug: resolvedIdentity.tenantId, tenantId: resolvedIdentity.tenantId, owner: ownerId,
+        name, slug, tenantId: resolvedIdentity.tenantId, owner: ownerId,
         phase: 'intake', domainStatus: 'not_connected',
       } })
     } catch (error) {

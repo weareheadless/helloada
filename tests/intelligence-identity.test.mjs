@@ -69,11 +69,14 @@ function payloadFake() {
     websites,
     async find({ collection, where }) {
       if (collection !== 'websites') return { docs: [] }
-      const tenant = where.and.find(clause => clause.tenantId)?.tenantId || {}
-      const owner = where.and.find(clause => clause.owner)?.owner || {}
-      return { docs: websites.filter(row => (tenant.equals === undefined || row.tenantId === tenant.equals)
-        && (tenant.contains === undefined || row.tenantId.includes(tenant.contains))
-        && row.owner === owner.equals) }
+      const clauses = where.and || [where]
+      const slug = clauses.find(clause => clause.slug)?.slug || {}
+      const tenant = clauses.find(clause => clause.tenantId)?.tenantId || {}
+      const owner = clauses.find(clause => clause.owner)?.owner || {}
+      return { docs: websites.filter(row => (slug.equals === undefined || row.slug === slug.equals)
+        && (tenant.equals === undefined || row.tenantId === tenant.equals)
+        && (tenant.contains === undefined || String(row.tenantId).includes(tenant.contains))
+        && (owner.equals === undefined || row.owner === owner.equals)) }
     },
     async create({ data }) {
       await Promise.resolve()

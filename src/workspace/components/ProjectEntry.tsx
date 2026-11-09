@@ -1,8 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { bootstrapProgress, type BootstrapState } from '@/lib/bootstrap-contract'
-import './project-entry.css'
+import './ProjectEntry.css'
 
 type EntryState = 'checking' | 'preparing' | 'unavailable' | 'failed' | 'opening'
 
@@ -14,7 +15,7 @@ type BootstrapResponse = {
 
 type HandoffResponse = { token?: string; actionUrl?: string; next?: string; error?: string }
 
-export function ProjectEntry({ websiteId, name, next }: { websiteId: string; name: string; next?: string }) {
+export function ProjectEntry({ websiteKey, name, next }: { websiteKey: string; name: string; next?: string }) {
   const [state, setState] = useState<EntryState>('checking')
   const [label, setLabel] = useState('Connecting to your website admin')
   const [retrying, setRetrying] = useState(false)
@@ -27,7 +28,7 @@ export function ProjectEntry({ websiteId, name, next }: { websiteId: string; nam
   const check = useCallback(async (): Promise<boolean> => {
     if (handoffStarted.current) return false
     try {
-      const response = await fetch('/api/helloada/websites/' + encodeURIComponent(websiteId) + '/bootstrap', {
+      const response = await fetch('/api/helloada/websites/' + encodeURIComponent(websiteKey) + '/bootstrap', {
         cache: 'no-store',
       })
       const body = await response.json().catch(() => ({})) as BootstrapResponse
@@ -49,7 +50,7 @@ export function ProjectEntry({ websiteId, name, next }: { websiteId: string; nam
         handoffStarted.current = true
         setState('opening')
         setLabel('Opening ' + name + ' in its Payload admin')
-        const grantResponse = await fetch('/api/helloada/websites/' + encodeURIComponent(websiteId) + '/handoff', {
+        const grantResponse = await fetch('/api/helloada/websites/' + encodeURIComponent(websiteKey) + '/handoff', {
           method: 'POST',
           cache: 'no-store',
           headers: { 'content-type': 'application/json' },
@@ -92,7 +93,7 @@ export function ProjectEntry({ websiteId, name, next }: { websiteId: string; nam
       setLabel(duringHandoff ? 'Secure sign-in could not finish. Try opening the workspace again.' : 'Connection interrupted. Checking again…')
       return !duringHandoff
     }
-  }, [name, next, websiteId])
+  }, [name, next, websiteKey])
 
   useEffect(() => {
     let active = true
@@ -116,7 +117,7 @@ export function ProjectEntry({ websiteId, name, next }: { websiteId: string; nam
     setLabel('Resuming the same website setup')
     handoffStarted.current = false
     try {
-      const response = await fetch('/api/helloada/websites/' + encodeURIComponent(websiteId) + '/bootstrap', { method: 'POST' })
+      const response = await fetch('/api/helloada/websites/' + encodeURIComponent(websiteKey) + '/bootstrap', { method: 'POST' })
       const body = await response.json().catch(() => ({})) as { error?: string }
       if (!response.ok) {
         setDiagnostic(body.error || 'The same workspace could not be resumed.')
@@ -152,7 +153,7 @@ export function ProjectEntry({ websiteId, name, next }: { websiteId: string; nam
           {retrying ? 'Resuming…' : 'Try again'} <span aria-hidden="true">→</span>
         </button>
       ) : null}
-      <p><a className="text-link" href="/portfolio">Back to your websites</a></p>
+      <p><Link className="text-link" href="/portfolio">Back to your websites</Link></p>
     </section>
   )
 }

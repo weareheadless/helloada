@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 
 import { currentUser } from '@/lib/auth'
 import { websiteScope } from '@/lib/platform-admin'
-import { ProjectEntry } from '@/app/websites/[id]/project-entry'
+import { ProjectEntry } from '@/workspace/components/ProjectEntry'
 import { safeNextPath } from '@/lib/safe-next'
 
 export const dynamic = 'force-dynamic'
@@ -49,7 +49,7 @@ export default async function AdminEntryPage({
       <div className="app-main">
         <div className="eyebrow"><span className="eyebrow-dot" /> secure workspace handoff</div>
         <h1 className="app-heading">Opening {website.name}</h1>
-        <ProjectEntry websiteId={String(website.id)} name={String(website.name || 'your website')} next={next || undefined} />
+        <ProjectEntry websiteKey={String(website.slug || website.tenantId || website.id)} name={String(website.name || 'your website')} next={next || undefined} />
       </div>
     </main>
   )

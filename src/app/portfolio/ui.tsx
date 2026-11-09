@@ -101,7 +101,7 @@ export function CreateWebsiteForm({ allowGithub = false }: { allowGithub?: boole
         },
         body: JSON.stringify({ name, github_repository: githubRepository }),
       })
-      const result = await response.json().catch(() => ({})) as { id?: string; error?: string }
+      const result = await response.json().catch(() => ({})) as { id?: string; slug?: string; error?: string }
       if (!response.ok || !result.id) {
         setError(result.error === 'idempotency_conflict'
           ? 'This create request was already used for a different name or repository. Start a new request.'
@@ -119,7 +119,7 @@ export function CreateWebsiteForm({ allowGithub = false }: { allowGithub?: boole
         return
       }
       window.sessionStorage.removeItem(pendingKeyStorage)
-      router.push('/websites/' + result.id)
+      router.push('/' + encodeURIComponent(result.slug || result.id))
     } catch {
       setError('The connection was interrupted. Retry to continue the same website request.')
       setBusy(false)

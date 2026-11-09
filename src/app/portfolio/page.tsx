@@ -8,7 +8,7 @@ import { removedWebsiteIds } from '@/lib/portfolio'
 import { ownerWebsiteIntelligence } from '@/lib/website'
 import { isPlatformAdmin, websiteScope } from '@/lib/platform-admin'
 import { CreateWebsiteForm, WebsiteVisibility, WebsiteScreenshot } from './ui'
-import { IntelligenceSummary } from '../websites/[id]/intelligence-summary'
+import { IntelligenceSummary } from '@/workspace/components/IntelligenceSummary'
 
 const phaseLabels: Record<string, string> = {
   intake: 'Getting started',
@@ -59,7 +59,7 @@ export default async function PortfolioPage() {
             return (
               <article className="site-card" key={website.id}>
                 <WebsiteScreenshot id={String(website.id)} name={website.name} available={Boolean(website.workerUrl && website.tenantId)} />
-                <Link className="site-card-link" href={'/websites/' + website.id + (website.tenantId && website.workerUrl ? '/workspace' : '')}>
+                <Link className="site-card-link" href={`/${encodeURIComponent(String(website.slug || website.id))}${website.tenantId && website.workerUrl ? '/workspace' : ''}`}>
                   <div>
                     <span className="site-phase">{phaseLabels[phase] || 'In progress'}</span>
                     <h2>{website.name}</h2>

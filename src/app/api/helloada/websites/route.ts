@@ -96,7 +96,7 @@ export async function POST(request: Request) {
       req: auth.req,
       data: { phase: 'needs_attention' },
     })
-    return NextResponse.json({ id: website.id, error: 'tenant_registration_failed', intelligenceStatus: 'pending' }, { status: 201 })
+    return NextResponse.json({ id: website.id, slug: String(website.slug || ''), error: 'tenant_registration_failed', intelligenceStatus: 'pending' }, { status: 201 })
   }
 
   const bootstrapResponse = await startWebsiteBootstrap(identity.tenantId, name, githubRepository || undefined)
@@ -139,7 +139,7 @@ export async function POST(request: Request) {
       req: auth.req,
       data: { phase: 'needs_attention' },
     })
-    return NextResponse.json({ id: website.id, error: 'bootstrap_contract_failed' }, { status: 201 })
+    return NextResponse.json({ id: website.id, slug: String(website.slug || ''), error: 'bootstrap_contract_failed' }, { status: 201 })
   }
 
   const workerReceipt = bootstrap.resource_receipts?.creating_worker as { worker_url?: string } | undefined
@@ -159,7 +159,7 @@ export async function POST(request: Request) {
         diagnostic: 'Verified admin origin is missing.',
       },
     })
-    return NextResponse.json({ id: website.id, error: 'verified_admin_origin_missing' }, { status: 502 })
+    return NextResponse.json({ id: website.id, slug: String(website.slug || ''), error: 'verified_admin_origin_missing' }, { status: 502 })
   }
 
   const failed = remoteStatus === 'failed'
@@ -195,6 +195,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     id: website.id,
+    slug: String(website.slug || ''),
     phase: provisioningPhase(githubRepository, bootstrap),
     bootstrapJobId: bootstrapJob.id,
     bootstrapStatus: remoteStatus,

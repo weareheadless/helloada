@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import './intelligence-summary.css'
+import './IntelligenceSummary.css'
 
 type RecordValue = Record<string, unknown>
 export type IntelligenceResult = { state: 'available'; data: RecordValue } | { state: 'not_started' } | { state: 'unavailable'; reason: string }

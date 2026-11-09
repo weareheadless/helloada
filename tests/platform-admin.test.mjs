@@ -43,13 +43,41 @@ test('reserved administrator addresses cannot be claimed through signup or profi
 
 test('website entry always enforces Payload access and an explicit owner or administrator scope', async () => {
   for (const user of [admin, { id: 99, collection: 'users' }]) {
-    let query
-    const auth = { user, req: { user }, payload: { find: async (options) => { query = options; return { docs: [{ id: 23 }] } } } }
-    assert.deepEqual(await ownedWebsite(auth, '23'), { id: 23 })
-    assert.equal(query.overrideAccess, false)
-    assert.deepEqual(query.where.and, [{ id: { equals: '23' } }, websiteScope(user)])
+    const queries = []
+    const auth = { user, req: { user }, payload: { find: async (options) => { queries.push(options); return { docs: [{ id: 23, slug: 'studio' }] } } } }
+    assert.deepEqual(await ownedWebsite(auth, '23'), { id: 23, slug: 'studio' })
+    assert.equal(queries[0].overrideAccess, false)
+    assert.deepEqual(queries[0].where.and, [{ slug: { equals: '23' } }, websiteScope(user)])
   }
   assert.equal(await ownedWebsite(null, '23'), null)
+})
+
+test('a site resolves by its readable slug and only numeric keys fall back to the legacy id', async () => {
+  const user = { id: 99, collection: 'users' }
+  const site = { id: 23, slug: 'studio' }
+  const queries = []
+  const payload = { find: async (options) => {
+    queries.push(options)
+    const clause = options.where.and[0]
+    const matched = clause.slug ? clause.slug.equals === 'studio' : clause.id.equals === '23'
+    return { docs: matched ? [site] : [] }
+  } }
+  const auth = { user, req: { user }, payload }
+
+  assert.deepEqual(await ownedWebsite(auth, 'studio'), site)
+  assert.equal(queries.length, 1)
+  assert.deepEqual(queries[0].where.and, [{ slug: { equals: 'studio' } }, websiteScope(user)])
+
+  queries.length = 0
+  assert.deepEqual(await ownedWebsite(auth, '23'), site)
+  assert.equal(queries.length, 2)
+  assert.deepEqual(queries[0].where.and[0], { slug: { equals: '23' } })
+  assert.deepEqual(queries[1].where.and[0], { id: { equals: '23' } })
+
+  queries.length = 0
+  assert.equal(await ownedWebsite(auth, 'missing'), null)
+  assert.equal(queries.length, 1)
+  assert.deepEqual(queries[0].where.and, [{ slug: { equals: 'missing' } }, websiteScope(user)])
 })
 
 const { Websites } = await import('../src/collections/Websites.ts')
