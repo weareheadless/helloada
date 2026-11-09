@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { headers } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 
@@ -20,10 +21,17 @@ type SnapshotSite = {
   features?: { commerce?: boolean; posts?: boolean; social?: boolean; bookings?: boolean }
 }
 
-export default async function WebsiteWorkspacePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function WebsiteWorkspacePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ view?: string }>
+}) {
   const auth = await currentUser(await headers())
   if (!auth) redirect('/login')
   const { id } = await params
+  const view = String((await searchParams).view || '')
   const website = await ownedWebsite(auth, id)
   if (!website) notFound()
   const tenantId = String(website.tenantId || '').trim()
@@ -69,5 +77,34 @@ export default async function WebsiteWorkspacePage({ params }: { params: Promise
     },
   }
 
-  return <WorkspaceClient config={config} />
+  const adminUrl = String(website.adminUrl || `${origin}/admin`)
+  const nav = [
+    { view: '', label: 'Workspace', href: `/websites/${id}/workspace` },
+    { view: 'growth', label: 'Growth', href: `/websites/${id}/workspace?view=growth` },
+    { view: 'messages', label: 'Messages', href: `/websites/${id}/workspace?view=messages` },
+    { view: 'gallery', label: 'Gallery', href: `/websites/${id}/workspace?view=gallery` },
+    { view: 'history', label: 'History', href: `/websites/${id}/workspace?view=history` },
+  ]
+
+  return (
+    <>
+      <nav className="helloada-control-nav" aria-label="Website workspace">
+        <Link className="helloada-control-brand" href="/portfolio">
+          <span className="helloada-control-brand-mark">A</span>
+          HelloAda
+        </Link>
+        <span className="helloada-control-site">{config.siteName}</span>
+        <div className="helloada-control-links">
+          {nav.map((item) => (
+            <Link key={item.label} href={item.href} aria-current={view === item.view ? 'page' : undefined}>
+              {item.label}
+            </Link>
+          ))}
+          <a className="is-separated" href={adminUrl} target="_blank" rel="noopener noreferrer">Manage content ↗</a>
+          <a href={config.routes.liveSite} target="_blank" rel="noopener noreferrer">Open site ↗</a>
+        </div>
+      </nav>
+      <WorkspaceClient config={config} />
+    </>
+  )
 }
