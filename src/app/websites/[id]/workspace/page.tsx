@@ -64,6 +64,9 @@ export default async function WebsiteWorkspacePage({
       workspaceApi: `/api/helloada/websites/${id}/owner`,
       liveSite: String(site.url || origin),
       preview,
+      // The exact draft preview is tenant-session scoped; review it in the
+      // tenant admin until the same-origin preview bridge exists.
+      manage: `/admin-entry/${tenantId}`,
     },
     content: {
       primaryCollections: site.content?.primaryCollections || ['pages', 'posts', 'products', 'media'],
