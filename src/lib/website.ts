@@ -34,7 +34,11 @@ export async function siteAgentRequest(tenantId: string, path: string, init: Req
   }
   const headers = new Headers(init.headers)
   headers.set('authorization', `Bearer ${controlToken}`)
-  headers.set('content-type', 'application/json')
+  // A JSON default keeps existing callers unchanged; a proxied upload or
+  // workspace request keeps the content type it was given.
+  if (!headers.has('content-type') && typeof init.body === 'string') {
+    headers.set('content-type', 'application/json')
+  }
   try {
     return await fetch(`${baseUrl}/v1/control-plane/websites/${encodeURIComponent(tenantId)}${path}`, {
       ...init,
