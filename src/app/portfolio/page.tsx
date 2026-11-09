@@ -51,7 +51,11 @@ export default async function PortfolioPage() {
           {visibleWebsites.length === 0 ? (
             <div className="empty-card">Your websites will appear here. Create one to get started with Ada.</div>
           ) : visibleWebsites.map((website) => {
-            const phase = String(website.phase || 'intake')
+            // A pre-existing tenant can be fully live without a bootstrap
+            // record, which leaves the stored provisioning phase at intake.
+            // The worker/admin/tenant triple is the actual live signal.
+            const live = Boolean(website.workerUrl && website.adminUrl && website.tenantId)
+            const phase = live ? 'live' : String(website.phase || 'intake')
             return (
               <article className="site-card" key={website.id}>
                 <WebsiteScreenshot id={String(website.id)} name={website.name} available={Boolean(website.workerUrl && website.tenantId)} />
