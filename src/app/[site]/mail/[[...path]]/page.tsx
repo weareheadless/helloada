@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 
 import { MailboxApp } from '@weareheadless/helloada-mailbox-ui'
 
@@ -16,6 +17,8 @@ export default async function SiteMailPage({
   const { site, path } = await params
   const { slug, tenantId, config } = await loadSiteView(site)
   const mailboxPath = `/${(path || []).join('/')}`.replace(/\/$/, '') || '/'
+  // The mailbox landing is the inbox; there is no upstream root page.
+  if (mailboxPath === '/') redirect(sitePath(slug, '/mail/inbox'))
   const language = (await cookies()).get('payload-lng')?.value || 'en'
 
   return (
