@@ -77,11 +77,9 @@ export default async function WebsiteWorkspacePage({
     },
   }
 
-  const adminUrl = String(website.adminUrl || `${origin}/admin`)
   const nav = [
     { view: '', label: 'Workspace', href: `/websites/${id}/workspace` },
     { view: 'growth', label: 'Growth', href: `/websites/${id}/workspace?view=growth` },
-    { view: 'messages', label: 'Messages', href: `/websites/${id}/workspace?view=messages` },
     { view: 'gallery', label: 'Gallery', href: `/websites/${id}/workspace?view=gallery` },
     { view: 'history', label: 'History', href: `/websites/${id}/workspace?view=history` },
   ]
@@ -100,7 +98,11 @@ export default async function WebsiteWorkspacePage({
               {item.label}
             </Link>
           ))}
-          <a className="is-separated" href={adminUrl} target="_blank" rel="noopener noreferrer">Manage content ↗</a>
+          {/* Messages and Mailflare live in the tenant Worker with their own
+              session. A cross-site iframe cannot carry that cookie, so the
+              control plane opens the tenant surface instead. */}
+          <a href={`${origin}/mail/inbox`} target="_blank" rel="noopener noreferrer">Messages ↗</a>
+          <Link className="is-separated" href={`/admin-entry/${tenantId}`}>Manage content ↗</Link>
           <a href={config.routes.liveSite} target="_blank" rel="noopener noreferrer">Open site ↗</a>
         </div>
       </nav>
