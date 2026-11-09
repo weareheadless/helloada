@@ -236,8 +236,8 @@ export function HelloAdaMail({ surface = 'inbox' }: { surface?: MailSurface }) {
             <p className="helloada-mail-eyebrow">{t('owner.calendar')}</p>
             <h1>{t('owner.calendar')}</h1>
           </div>
-          <button type="button" className="helloada-mail-button" onClick={() => { void loadCalendar() }} disabled={loadingCalendar}>
-            {loadingCalendar ? t('owner.messagesLoading') : t('owner.messagesLoadMore')}
+          <button type="button" className="helloada-mail-button" aria-label="Refresh calendar" title="Refresh" onClick={() => { void loadCalendar() }} disabled={loadingCalendar}>
+            ↻
           </button>
         </header>
         {error && <p className="helloada-mail-error" role="alert">{error}</p>}
@@ -273,8 +273,8 @@ export function HelloAdaMail({ surface = 'inbox' }: { surface?: MailSurface }) {
             <p className="helloada-mail-eyebrow">{t('owner.messagesInbox')}</p>
             <h1>{t('owner.messages')}</h1>
           </div>
-          <button type="button" className="helloada-mail-button" onClick={() => { void loadList() }} disabled={loadingList}>
-            {t('owner.messagesLoadMore')}
+          <button type="button" className="helloada-mail-button" aria-label="Refresh messages" title="Refresh" onClick={() => { void loadList() }} disabled={loadingList}>
+            ↻
           </button>
         </header>
         {mailboxAddress && <p className="helloada-mail-address">{mailboxAddress}</p>}
