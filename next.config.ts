@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
     cpus: 1,
   },
   serverExternalPackages: ['jose', 'pg-cloudflare'],
+  // Tenant media is served from the tenant origin, not this app.
+  images: { unoptimized: true },
 }
 
 export default withPayload(nextConfig, { devBundleServerPackages: false })
