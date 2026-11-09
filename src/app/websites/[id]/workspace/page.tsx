@@ -77,6 +77,10 @@ export default async function WebsiteWorkspacePage({
       posts: Boolean(site.features?.posts ?? true),
       social: Boolean(site.features?.social),
       bookings: Boolean(site.features?.bookings),
+      // The published preview is served by the tenant Worker on another
+      // origin. In-preview editing needs a same-origin document; the owner
+      // edits through Manage content instead.
+      inlineEditing: false,
     },
   }
 
