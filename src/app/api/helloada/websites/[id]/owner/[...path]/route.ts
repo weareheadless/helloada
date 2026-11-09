@@ -42,6 +42,9 @@ async function proxy(request: Request, context: RouteContext) {
   const out = new Headers({ 'cache-control': 'no-store' })
   const contentType = response.headers.get('content-type')
   if (contentType) out.set('content-type', contentType)
+  // Attachments and exports must keep their download name.
+  const disposition = response.headers.get('content-disposition')
+  if (disposition) out.set('content-disposition', disposition)
   const cookies = response.headers.getSetCookie?.() || []
   for (const cookie of cookies) out.append('set-cookie', cookie)
   return new Response(response.body, { status: response.status, headers: out })

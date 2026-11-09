@@ -47,10 +47,11 @@ test('the canonical site URL is the slug, not the numeric record id', () => {
 })
 
 test('workspace navigation and the portfolio use the slug URL', () => {
-  const workspace = read('src/workspace/WorkspacePage.tsx')
-  assert.match(workspace, /sitePath\(slug\)/)
-  assert.doesNotMatch(workspace, /\/websites\/\$\{id\}/)
-  assert.match(workspace, /workspaceApi: `\/api\/helloada\/websites\/\$\{encodeURIComponent\(slug\)\}\/owner`/)
+  const nav = read('src/workspace/SiteNav.tsx')
+  assert.match(nav, /sitePath\(slug\)/)
+  assert.doesNotMatch(nav, /\/websites\/\$\{id\}/)
+  const view = read('src/workspace/site-view.ts')
+  assert.match(view, /workspaceApi: `\/api\/helloada\/websites\/\$\{encodeURIComponent\(slug\)\}\/owner`/)
 
   const portfolio = read('src/app/portfolio/page.tsx')
   assert.match(portfolio, /website\.slug \|\| website\.id/)

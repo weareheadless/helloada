@@ -1,0 +1,18 @@
+/* The complete mailbox surface. Tailwind and its utility layer are loaded only
+   by this route; the mailbox package ships the component styles. */
+@import "tailwindcss";
+@import "../../../node_modules/@weareheadless/helloada-mailbox-ui/dist/styles.css";
+
+@source "../../../node_modules/@weareheadless/helloada-mailbox-ui/dist";
+
+/* The control plane owns the top navigation and the viewport height. */
+.helloada-mailbox-page {
+  height: calc(100dvh - 58px);
+  min-height: 0;
+  overflow: hidden;
+  background: var(--helloada-bg);
+}
+
+.helloada-mailbox-page > * {
+  height: 100%;
+}

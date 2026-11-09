@@ -7,9 +7,9 @@ const root = resolve(import.meta.dirname, '..')
 const read = (path) => readFileSync(resolve(root, path), 'utf8')
 
 test('the workspace renders Messages inside the control plane', () => {
-  const page = read('src/workspace/WorkspacePage.tsx')
-  assert.match(page, /view: 'messages', label: 'Messages'/)
-  assert.doesNotMatch(page, /admin-entry\/\$\{tenantId\}\?next=.*\/mail\/inbox/)
+  const nav = read('src/workspace/SiteNav.tsx')
+  assert.match(nav, /view: 'messages', label: 'Messages'/)
+  assert.doesNotMatch(nav, /admin-entry\/\$\{tenantId\}\?next=.*\/mail\/inbox/)
   const workspace = read('src/workspace/components/WebsiteWorkspace.tsx')
   assert.match(workspace, /<HelloAdaMail \/>/)
   assert.match(workspace, /<HelloAdaMail surface="calendar" \/>/)
@@ -25,7 +25,7 @@ test('the integrated mailbox talks to the tenant bridge instead of an iframe', (
 })
 
 test('the workspace navigation keeps advanced content separate from Messages', () => {
-  const page = read('src/workspace/WorkspacePage.tsx')
-  assert.match(page, /Manage content ↗/)
-  assert.match(page, /config\.features\.bookings/)
+  const nav = read('src/workspace/SiteNav.tsx')
+  assert.match(nav, /Manage content ↗/)
+  assert.match(nav, /bookings\s*\?/)
 })

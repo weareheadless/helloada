@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
     cpus: 1,
   },
   serverExternalPackages: ['jose', 'pg-cloudflare'],
+  // The mailbox UI ships TypeScript source generated from the pinned upstream.
+  transpilePackages: ['@weareheadless/helloada-mailbox-ui'],
   // Tenant media is served from the tenant origin, not this app.
   images: { unoptimized: true },
 }
