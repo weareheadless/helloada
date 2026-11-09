@@ -55,7 +55,7 @@ export default async function PortfolioPage() {
             return (
               <article className="site-card" key={website.id}>
                 <WebsiteScreenshot id={String(website.id)} name={website.name} available={Boolean(website.workerUrl && website.tenantId)} />
-                <Link className="site-card-link" href={'/websites/' + website.id}>
+                <Link className="site-card-link" href={'/websites/' + website.id + (website.tenantId && website.workerUrl ? '/workspace' : '')}>
                   <div>
                     <span className="site-phase">{phaseLabels[phase] || 'In progress'}</span>
                     <h2>{website.name}</h2>
