@@ -46,10 +46,11 @@ const mediaLabel = (media: GalleryMedia) => media.alt || media.filename || media
 const conversationHref = (media: GalleryMedia, workspacePath: string) => {
   const params = new URLSearchParams({
     asset_id: String(media.id),
-    asset_name: media.filename || media.alt || 'Selected image',
+    asset_name: media.filename || media.alt || 'Selected media',
   })
   const source = mediaUrl(media)
   if (source) params.set('asset_url', source)
+  if (media.mimeType) params.set('asset_type', media.mimeType)
   return `${workspacePath}?${params.toString()}`
 }
 
@@ -64,6 +65,8 @@ export function HelloAdaGallery() {
   const [hasNextPage, setHasNextPage] = useState(false)
   const [page, setPage] = useState(1)
   const [uploading, setUploading] = useState(false)
+  const [uploadedCount, setUploadedCount] = useState(0)
+  const [uploadTotal, setUploadTotal] = useState(0)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const analysisPollsRef = useRef(0)
@@ -93,24 +96,50 @@ export function HelloAdaGallery() {
     return () => window.clearTimeout(timer)
   }, [load, search])
 
-  const upload = async (file: File) => {
-    if (!file.type.startsWith('image/') || uploading) return
+  /**
+   * One request per file keeps every upload on the same canonical
+   * `/media/upload` contract and lets a single rejected file fail alone.
+   */
+  const upload = async (files: File[]) => {
+    if (uploading) return
+    const accepted = files.filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/'))
+    const rejected = files.filter((file) => !accepted.includes(file))
+    if (!accepted.length) {
+      setError(t('owner.galleryUnsupported'))
+      if (inputRef.current) inputRef.current.value = ''
+      return
+    }
     setUploading(true)
     setError('')
+    setUploadedCount(0)
+    setUploadTotal(accepted.length)
+    const failures = rejected.map((file) => `${file.name}: ${t('owner.galleryUnsupported')}`)
+    let uploaded = 0
     try {
-      const form = new FormData()
-      form.append('file', file)
-      const response = await fetchHelloAda('/api/helloada/media/upload', { method: 'POST', body: form })
-      const body = (await response.json()) as { attachment?: { asset_id?: string | number; url?: string; preview_url?: string; name?: string; alt_text?: string }; message?: string }
-      if (!response.ok || body.attachment?.asset_id === undefined) throw new Error(responseMessage(body, t('error.imageAttach')))
-      analysisPollsRef.current = 0
-      await load(1, false, search)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t('error.imageAttach'))
+      for (const [index, file] of accepted.entries()) {
+        try {
+          const form = new FormData()
+          form.append('file', file)
+          const response = await fetchHelloAda('/api/helloada/media/upload', { method: 'POST', body: form })
+          const body = (await response.json()) as { attachment?: { asset_id?: string | number; url?: string; preview_url?: string; name?: string; alt_text?: string }; message?: string }
+          if (!response.ok || body.attachment?.asset_id === undefined) throw new Error(responseMessage(body, t('error.imageAttach')))
+          uploaded += 1
+        } catch (cause) {
+          failures.push(`${file.name}: ${cause instanceof Error ? cause.message : t('error.imageAttach')}`)
+        }
+        setUploadedCount(index + 1)
+      }
+      if (uploaded) {
+        analysisPollsRef.current = 0
+        await load(1, false, search)
+      }
     } finally {
       setUploading(false)
+      setUploadTotal(0)
+      setUploadedCount(0)
       if (inputRef.current) inputRef.current.value = ''
     }
+    if (failures.length) setError(failures.join('\n'))
   }
 
   // Ada analyzes uploads in the background; refresh a bounded number of times
@@ -139,9 +168,22 @@ export function HelloAdaGallery() {
         <div className="helloada-gallery-actions">
           <Link className="helloada-gallery-secondary" href="/admin/collections/media">{t('owner.galleryOpenPayload')}<WorkspaceIcon name="external" size={15} /></Link>
           <button className="helloada-gallery-upload" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
-            <WorkspaceIcon name="plus" size={15} />{uploading ? t('workspace.attachingImage') : t('workspace.pageUploadImage')}
+            <WorkspaceIcon name="plus" size={15} />
+            {uploading
+              ? `${t('workspace.attachingImage')} ${Math.min(uploadedCount + 1, uploadTotal)}/${uploadTotal}`
+              : t('owner.galleryUpload')}
           </button>
-          <input ref={inputRef} className="helloada-file-input" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file) }} />
+          <input
+            ref={inputRef}
+            className="helloada-file-input"
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            onChange={(event) => {
+              const files = Array.from(event.target.files || [])
+              if (files.length) void upload(files)
+            }}
+          />
         </div>
       </header>
 

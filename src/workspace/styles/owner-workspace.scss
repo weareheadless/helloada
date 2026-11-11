@@ -293,8 +293,8 @@
   .helloada-gallery-toolbar label { display: grid; gap: 6px; width: min(360px, 100%); color: var(--helloada-muted); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
   .helloada-gallery-toolbar input { min-height: 36px; padding: 0 11px; border: 1px solid var(--helloada-soft-line); border-radius: 10px; color: var(--helloada-ink); background: var(--helloada-inset); font-size: 12px; }
   .helloada-gallery-count { color: var(--helloada-dim); font-size: 10px; }
-  .helloada-gallery-message { padding: 50px 15px; color: var(--helloada-muted); font-size: 12px; text-align: center; }
-  .helloada-gallery-message.is-error { color: var(--helloada-cyan); }
+  .helloada-gallery-message { padding: 50px 15px; color: var(--helloada-muted); font-size: 12px; text-align: center; white-space: pre-line; }
+  .helloada-gallery-message.is-error { padding: 14px 15px; color: var(--helloada-cyan); text-align: left; }
   .helloada-gallery-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
   .helloada-gallery-card { min-width: 0; overflow: hidden; border: 1px solid var(--helloada-soft-line); border-radius: 14px; background: var(--helloada-panel-raised); transition: border-color 500ms var(--helloada-ease), transform 650ms var(--helloada-spring), background-color 500ms var(--helloada-ease); }
   .helloada-gallery-card:hover { border-color: rgba(255,107,94,.4); background: var(--helloada-inset); transform: translateY(-2px); }

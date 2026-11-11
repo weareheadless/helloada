@@ -63,6 +63,25 @@ test('workspace thumbnails resolve tenant media before rendering', () => {
   assert.match(workspace, /resolveMediaUrl\(publicMediaUrl\(media\), siteOrigin\)/)
 })
 
+test('the gallery uploads several images and videos in one pass', () => {
+  const gallery = read('src/workspace/components/HelloAdaGallery.tsx')
+  assert.match(gallery, /accept="image\/\*,video\/\*"/)
+  assert.match(gallery, /multiple/)
+  assert.match(gallery, /const upload = async \(files: File\[\]\)/)
+  assert.match(gallery, /for \(const \[index, file\] of accepted\.entries\(\)\)/)
+  assert.match(gallery, /startsWith\('image\/'\) \|\| file\.type\.startsWith\('video\/'\)/)
+  assert.match(gallery, /params\.set\('asset_type', media\.mimeType\)/)
+})
+
+test('video attachments render as video in the chat', () => {
+  const workspace = read('src/workspace/components/WebsiteWorkspace.tsx')
+  assert.match(workspace, /const isVideoAttachment = \(/)
+  assert.match(workspace, /mime_type\?: string \| null/)
+  assert.match(workspace, /isVideoAttachment\(attachment\)/)
+  assert.match(workspace, /<video src=\{source\}/)
+  assert.match(workspace, /mime_type: media\.mimeType \|\| null/)
+})
+
 test('video media renders as video, not as a broken image', () => {
   const gallery = read('src/workspace/components/HelloAdaGallery.tsx')
   assert.match(gallery, /mimeType\?: string \| null/)

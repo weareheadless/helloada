@@ -2385,6 +2385,7 @@ textarea:focus-visible {
 }
 
 .helloada-chat-attachment img,
+.helloada-chat-attachment video,
 .helloada-chat-attachment-placeholder {
   display: grid;
   width: 92px;
@@ -2583,6 +2584,7 @@ textarea:focus-visible {
 }
 
 .helloada-pending-attachment img,
+.helloada-pending-attachment video,
 .helloada-pending-attachment > span:not(.helloada-pending-attachment-details) {
   display: grid;
   flex: 0 0 46px;

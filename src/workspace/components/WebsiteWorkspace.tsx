@@ -238,6 +238,7 @@ type ChatAttachment = {
   name?: string
   alt_text?: string
   description?: string
+  mime_type?: string | null
   width?: number | null
   height?: number | null
   url?: string | null
@@ -325,6 +326,22 @@ const imageReferenceId = (value: unknown): string => {
     if (typeof id === 'string' || typeof id === 'number') return String(id)
   }
   return ''
+}
+
+const VIDEO_FILE_PATTERN = /\.(?:mp4|webm|mov|m4v|ogv)(?:[?#]|$)/i
+
+/** Media references carry a video either by MIME type or by its stored file name. */
+const isVideoAttachment = (attachment: {
+  mime_type?: string | null
+  type?: string | null
+  url?: string | null
+  thumbnail_url?: string | null
+  preview_url?: string | null
+}): boolean => {
+  const mime = String(attachment.mime_type || attachment.type || '').toLowerCase()
+  if (mime.startsWith('video/')) return true
+  if (mime && mime !== 'media_asset') return false
+  return VIDEO_FILE_PATTERN.test(String(attachment.url || attachment.thumbnail_url || attachment.preview_url || ''))
 }
 
 const publicMediaUrl = (value: unknown, media?: EditableMedia): string => {
@@ -645,6 +662,7 @@ function ReviewWorkspace() {
   const selectedAssetId = searchParams.get('asset_id') || ''
   const selectedAssetUrl = searchParams.get('asset_url') || ''
   const selectedAssetName = searchParams.get('asset_name') || ''
+  const selectedAssetType = searchParams.get('asset_type') || ''
   useEffect(() => {
     if (!preparedAsk) return
     setMessage(preparedAsk.slice(0, 8000))
@@ -1218,8 +1236,9 @@ function ReviewWorkspace() {
     const attachment: ChatAttachment = {
       asset_id: media.id,
       sourceId: media.sourceId || null,
-      name: media.filename || media.alt || `Image ${media.id}`,
+      name: media.filename || media.alt || `Media ${media.id}`,
       alt_text: media.alt || media.filename || undefined,
+      mime_type: media.mimeType || null,
       url: publicMediaUrl(media) || null,
       thumbnail_url: publicMediaUrl(media) || null,
     }
@@ -1623,13 +1642,14 @@ function ReviewWorkspace() {
       asset_id: selectedAssetId,
       name: selectedAssetName || t('workspace.image'),
       alt_text: selectedAssetName || undefined,
+      mime_type: selectedAssetType || null,
       url: selectedAssetUrl || null,
       thumbnail_url: selectedAssetUrl || null,
     }
     setPendingAttachments((current) => current.some((item) => String(item.asset_id) === selectedAssetId) ? current : [...current, attachment])
     setMobilePane('ada')
     window.setTimeout(() => messageInputRef.current?.focus(), 0)
-  }, [selectedAssetId, selectedAssetName, selectedAssetUrl, t])
+  }, [selectedAssetId, selectedAssetName, selectedAssetType, selectedAssetUrl, t])
 
   const handleChatScroll = useCallback(() => {
     const element = chatLogRef.current
@@ -2536,7 +2556,10 @@ function ReviewWorkspace() {
                       const source = resolveMediaUrl(attachment.thumbnail_url || attachment.preview_url || attachment.url || '', siteOrigin)
                       return (
                         <figure className="helloada-chat-attachment" key={`${attachment.asset_id || 'attachment'}-${attachmentIndex}`}>
-                           {source ? <Image src={source} alt={attachment.alt_text || attachment.name || t('workspace.image')} width={92} height={70} unoptimized /> : <span className="helloada-chat-attachment-placeholder">{t('workspace.image')}</span>}
+                           {source ? (isVideoAttachment(attachment)
+                             ? <video src={source} aria-label={attachment.alt_text || attachment.name || t('workspace.image')} width={92} height={70} controls playsInline muted preload="metadata" />
+                             : <Image src={source} alt={attachment.alt_text || attachment.name || t('workspace.image')} width={92} height={70} unoptimized />)
+                             : <span className="helloada-chat-attachment-placeholder">{t('workspace.image')}</span>}
                           <figcaption>
                             <strong>{attachment.name || `${t('workspace.image')} ${attachmentIndex + 1}`}</strong>
                             {attachment.analysis_error
@@ -2631,7 +2654,9 @@ function ReviewWorkspace() {
                        aria-label={`${t('workspace.removeImage')} ${attachment.name || `${t('workspace.image')} ${index + 1}`}`}
                       onClick={() => setPendingAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}
                     >
-                       {source ? <Image src={source} alt="" width={46} height={46} unoptimized /> : null}
+                       {source ? (isVideoAttachment(attachment)
+                         ? <video src={source} aria-label={attachment.alt_text || attachment.name || ''} width={46} height={46} muted playsInline preload="metadata" />
+                         : <Image src={source} alt="" width={46} height={46} unoptimized />) : null}
                        <span className="helloada-pending-attachment-details">
                          <strong>{attachment.name || `${t('workspace.image')} ${index + 1}`}</strong>
                          <small>{t('workspace.attachmentReady')}</small>
