@@ -15,7 +15,7 @@ import { CheckpointHistory } from './CheckpointHistory'
 import { fetchHelloAda } from '../api/fetchHelloAda'
 import { helloAdaPath } from '../config/site'
 import { useHelloAdaTranslations } from '../api/useHelloAdaTranslations'
-import { mediaReferenceId, mediaUrl as migrationMediaUrl } from '../lib/media'
+import { mediaOrigin, mediaReferenceId, mediaUrl as migrationMediaUrl, resolveMediaUrl } from '../lib/media'
 import { selectReviewDraft } from '../lib/select-review-draft'
 import { exactCandidatePreviewReady } from '../lib/candidate-preview'
 import { canSendChatAttachments, remainingChatAttachmentSlots, splitChatImageFiles, uploadChatImage, uploadChatImages } from '../lib/chat-attachments'
@@ -462,9 +462,11 @@ function AdminMediaThumbnail({
   className?: string
   unavailableLabel?: string
 }) {
+  const site = useHelloAdaSite()
   const [failed, setFailed] = useState(false)
-  if (!src || failed) return <span className={`${className || ''} helloada-media-thumbnail-fallback`.trim()} aria-label={unavailableLabel}>{unavailableLabel}</span>
-  return <Image src={src} alt={alt} width={width} height={height} unoptimized className={className} onError={() => setFailed(true)} />
+  const resolved = resolveMediaUrl(src, mediaOrigin(site.routes.liveSite))
+  if (!resolved || failed) return <span className={`${className || ''} helloada-media-thumbnail-fallback`.trim()} aria-label={unavailableLabel}>{unavailableLabel}</span>
+  return <Image src={resolved} alt={alt} width={width} height={height} unoptimized className={className} onError={() => setFailed(true)} />
 }
 
 const lexicalDocumentFromText = (value: string) => ({
@@ -805,13 +807,7 @@ function ReviewWorkspace() {
   )
   const candidateReviewPreviewReady = candidateReviewLinked && candidatePreviewReady
 
-  const siteOrigin = useMemo(() => {
-    const live = site.routes.liveSite
-    if (/^https?:\/\//.test(live)) {
-      try { return new URL(live).origin } catch { /* fall back to this deployment */ }
-    }
-    return typeof window === 'undefined' ? '' : window.location.origin
-  }, [site.routes.liveSite])
+  const siteOrigin = useMemo(() => mediaOrigin(site.routes.liveSite), [site.routes.liveSite])
 
   const previewAlias = useMemo(() => {
     const preview = site.routes.preview
@@ -2532,7 +2528,7 @@ function ReviewWorkspace() {
                 {item.attachments?.length ? (
                    <div className="helloada-chat-attachments" aria-label={t('workspace.attachedImages')}>
                     {item.attachments.map((attachment, attachmentIndex) => {
-                      const source = attachment.thumbnail_url || attachment.preview_url || attachment.url || ''
+                      const source = resolveMediaUrl(attachment.thumbnail_url || attachment.preview_url || attachment.url || '', siteOrigin)
                       return (
                         <figure className="helloada-chat-attachment" key={`${attachment.asset_id || 'attachment'}-${attachmentIndex}`}>
                            {source ? <Image src={source} alt={attachment.alt_text || attachment.name || t('workspace.image')} width={92} height={70} unoptimized /> : <span className="helloada-chat-attachment-placeholder">{t('workspace.image')}</span>}
@@ -2621,7 +2617,7 @@ function ReviewWorkspace() {
                     </div>
                   ))}
                 {pendingAttachments.map((attachment, index) => {
-                  const source = attachment.thumbnail_url || attachment.preview_url || attachment.url || ''
+                  const source = resolveMediaUrl(attachment.thumbnail_url || attachment.preview_url || attachment.url || '', siteOrigin)
                   return (
                     <button
                       className="helloada-pending-attachment"
@@ -2699,7 +2695,7 @@ function ReviewWorkspace() {
                   <div className="helloada-chat-gallery-grid">
                     {uploadEntries.map((entry) => (
                       <div className="helloada-chat-upload-preview" key={entry.id} role={entry.status === 'failed' ? 'alert' : 'status'}>
-                        {entry.previewUrl ? <Image src={entry.previewUrl} alt="" width={92} height={70} unoptimized /> : <span>{entry.filename}</span>}
+                        {entry.previewUrl ? <Image src={resolveMediaUrl(entry.previewUrl, siteOrigin)} alt="" width={92} height={70} unoptimized /> : <span>{entry.filename}</span>}
                         <small>{entry.filename}</small>
                         <small>{entry.status === 'uploading' ? `${t('workspace.attachmentUploading')} ${entry.progress ?? 0}%` : entry.reason || t('workspace.attachmentFailed')}</small>
                         {entry.status === 'uploading' ? <progress aria-label={`${entry.filename} upload progress`} max={100} value={entry.progress ?? 0} /> : null}
@@ -2707,7 +2703,7 @@ function ReviewWorkspace() {
                     ))}
                     {editorMedia.map((media) => {
                       const selected = pendingAttachments.some((item) => String(item.asset_id) === String(media.id))
-                      const source = publicMediaUrl(media)
+                      const source = resolveMediaUrl(publicMediaUrl(media), siteOrigin)
                       return (
                         <button type="button" key={String(media.id)} className={selected ? 'is-selected' : ''} aria-pressed={selected} onClick={() => chooseChatMedia(media)}>
                           {source ? <Image src={source} alt={media.alt || media.filename || t('workspace.image')} width={92} height={70} unoptimized /> : <span>{t('workspace.pageGalleryUnavailable')}</span>}

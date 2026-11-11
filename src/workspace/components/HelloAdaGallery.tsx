@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 import { fetchHelloAda } from '../api/fetchHelloAda'
 import { useHelloAdaTranslations } from '../api/useHelloAdaTranslations'
 import { useHelloAdaSite } from '../config/provider'
-import { mediaUrl as migrationMediaUrl } from '../lib/media'
+import { mediaOrigin, mediaUrl, resolveMediaUrl } from '../lib/media'
 import { HelloAdaMark } from './HelloAdaLogo'
 import { WorkspaceIcon } from './WorkspaceIcon'
 import { responseMessage } from '../api/response-message'
@@ -31,26 +32,28 @@ type GalleryResponse = {
   hasNextPage?: boolean
 }
 
-const mediaUrl = (media: GalleryMedia) => {
-  const migrated = migrationMediaUrl(media)
-  return migrated || String(media.url || media.sourceUrl || media.originalUrl || '').trim()
-}
-
 const mediaLabel = (media: GalleryMedia) => media.alt || media.filename || media.sourcePages?.[0] || `Image ${media.id}`
 
-const conversationHref = (media: GalleryMedia) => {
+/**
+ * "Use in Ada" hands the asset to the workspace chat, which reads these query
+ * parameters. The asset URL stays tenant-relative because the chat sends it
+ * back to the tenant API; only the link target is control-plane local.
+ */
+const conversationHref = (media: GalleryMedia, workspacePath: string) => {
   const params = new URLSearchParams({
     asset_id: String(media.id),
     asset_name: media.filename || media.alt || 'Selected image',
   })
   const source = mediaUrl(media)
   if (source) params.set('asset_url', source)
-  return `/admin?${params.toString()}`
+  return `${workspacePath}?${params.toString()}`
 }
 
 export function HelloAdaGallery() {
   const { t } = useHelloAdaTranslations()
   const site = useHelloAdaSite()
+  const pathname = usePathname()
+  const origin = mediaOrigin(site.routes.liveSite)
   const [media, setMedia] = useState<GalleryMedia[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -152,7 +155,7 @@ export function HelloAdaGallery() {
         {media.length ? (
           <div className="helloada-gallery-grid">
             {media.map((item) => {
-              const source = mediaUrl(item)
+              const source = resolveMediaUrl(item, origin)
               return (
                 <article className="helloada-gallery-card" key={String(item.id)}>
                   <div className="helloada-gallery-card-image">
@@ -168,7 +171,7 @@ export function HelloAdaGallery() {
                     {item.analysisStatus && item.analysisStatus !== 'ready' ? (
                       <small className="helloada-gallery-analysis">{t(item.analysisStatus === 'failed' ? 'workspace.analysisUnavailable' : 'owner.galleryAnalysing')}</small>
                     ) : null}
-                    <Link className="helloada-gallery-use" href={conversationHref(item)}>{t('owner.galleryUseInChat')}<WorkspaceIcon name="arrow" size={15} /></Link>
+                    <Link className="helloada-gallery-use" href={conversationHref(item, pathname)}>{t('owner.galleryUseInChat')}<WorkspaceIcon name="arrow" size={15} /></Link>
                   </div>
                 </article>
               )
