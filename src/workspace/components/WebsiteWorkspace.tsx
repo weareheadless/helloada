@@ -18,6 +18,7 @@ import { useHelloAdaTranslations } from '../api/useHelloAdaTranslations'
 import { mediaOrigin, mediaReferenceId, mediaUrl as migrationMediaUrl, resolveMediaUrl } from '../lib/media'
 import { selectReviewDraft } from '../lib/select-review-draft'
 import { exactCandidatePreviewReady } from '../lib/candidate-preview'
+import { exactSourcePreviewHref } from '../lib/exact-preview'
 import { canSendChatAttachments, remainingChatAttachmentSlots, splitChatImageFiles, uploadChatImage, uploadChatImages } from '../lib/chat-attachments'
 import { useHelloAdaSite } from '../config/provider'
 import { HelloAdaMark } from './HelloAdaLogo'
@@ -651,6 +652,9 @@ function ReviewWorkspace() {
   const [previewPlan, setPreviewPlan] = useState<PreviewPlan>()
   const [sourceReview, setSourceReview] = useState<{ draftId: number; sha: string; url: string }>()
   const externalDraftReview = Boolean(sourceReview && site.routes.manage)
+  const exactPreviewHref = externalDraftReview
+    ? exactSourcePreviewHref(site.routes.manage, sourceReview?.url)
+    : undefined
   const [draftPreview, setDraftPreview] = useState<{ key: string; url: string; route: string }>()
   const sourceReviewIdentityRef = useRef('')
   const previewPlanRequestRef = useRef(0)
@@ -2403,8 +2407,12 @@ function ReviewWorkspace() {
              ) : null}
              {externalDraftReview ? (
                <div className="helloada-preview-external" role="status">
-                 <span>Exact draft ready. Review it in the tenant admin.</span>
-                 <a href={site.routes.manage} target="_blank" rel="noopener noreferrer">Open Manage content ↗</a>
+                 <span>{exactPreviewHref
+                   ? 'Exact preview ready. It opens in your website’s own session.'
+                   : 'Preparing the exact preview…'}</span>
+                 {exactPreviewHref ? (
+                   <a href={exactPreviewHref} target="_blank" rel="noopener noreferrer">Open exact preview ↗</a>
+                 ) : null}
                </div>
              ) : null}
              <div className={`helloada-preview-frame-shell is-${previewViewport}`}>
