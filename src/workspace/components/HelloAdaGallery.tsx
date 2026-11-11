@@ -22,10 +22,14 @@ type GalleryMedia = {
   sourceUrl?: string | null
   originalUrl?: string | null
   sourcePages?: string[]
+  mimeType?: string | null
   description?: string | null
   analysisStatus?: string | null
   tags?: string[]
 }
+
+/** The media library holds videos as well as images; only images can be drawn with <img>. */
+const isVideo = (media: GalleryMedia) => String(media.mimeType || '').toLowerCase().startsWith('video/')
 
 type GalleryResponse = {
   media?: GalleryMedia[]
@@ -159,7 +163,9 @@ export function HelloAdaGallery() {
               return (
                 <article className="helloada-gallery-card" key={String(item.id)}>
                   <div className="helloada-gallery-card-image">
-                    {source ? <Image src={source} alt={mediaLabel(item)} width={360} height={250} unoptimized /> : <span>{t('workspace.pageGalleryUnavailable')}</span>}
+                    {!source ? <span>{t('workspace.pageGalleryUnavailable')}</span>
+                      : isVideo(item) ? <video src={source} controls playsInline muted preload="metadata" aria-label={mediaLabel(item)} />
+                        : <Image src={source} alt={mediaLabel(item)} width={360} height={250} unoptimized />}
                   </div>
                   <div className="helloada-gallery-card-meta">
                     <div><strong>{mediaLabel(item)}</strong><small>{item.filename || `#${item.id}`}</small></div>

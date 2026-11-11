@@ -62,3 +62,15 @@ test('workspace thumbnails resolve tenant media before rendering', () => {
   assert.match(workspace, /resolveMediaUrl\(attachment\.thumbnail_url \|\| attachment\.preview_url \|\| attachment\.url \|\| '', siteOrigin\)/)
   assert.match(workspace, /resolveMediaUrl\(publicMediaUrl\(media\), siteOrigin\)/)
 })
+
+test('video media renders as video, not as a broken image', () => {
+  const gallery = read('src/workspace/components/HelloAdaGallery.tsx')
+  assert.match(gallery, /mimeType\?: string \| null/)
+  assert.match(gallery, /const isVideo = \(media: GalleryMedia\) => String\(media\.mimeType \|\| ''\)\.toLowerCase\(\)\.startsWith\('video\/'\)/)
+  assert.match(gallery, /isVideo\(item\) \? <video src=\{source\}/)
+
+  const workspace = read('src/workspace/components/WebsiteWorkspace.tsx')
+  assert.match(workspace, /mimeType\?: string \| null/)
+  assert.match(workspace, /startsWith\('video\/'\)\) \{\s*return <video src=\{resolved\}/)
+  assert.match(workspace, /mimeType=\{media\.mimeType\}/)
+})

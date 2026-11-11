@@ -453,6 +453,7 @@ function AdminMediaThumbnail({
   width,
   height,
   className,
+  mimeType,
   unavailableLabel = 'Image unavailable',
 }: {
   src: string
@@ -460,12 +461,16 @@ function AdminMediaThumbnail({
   width: number
   height: number
   className?: string
+  mimeType?: string | null
   unavailableLabel?: string
 }) {
   const site = useHelloAdaSite()
   const [failed, setFailed] = useState(false)
   const resolved = resolveMediaUrl(src, mediaOrigin(site.routes.liveSite))
   if (!resolved || failed) return <span className={`${className || ''} helloada-media-thumbnail-fallback`.trim()} aria-label={unavailableLabel}>{unavailableLabel}</span>
+  if (String(mimeType || '').toLowerCase().startsWith('video/')) {
+    return <video src={resolved} aria-label={alt} width={width} height={height} className={className} controls playsInline muted preload="metadata" onError={() => setFailed(true)} />
+  }
   return <Image src={resolved} alt={alt} width={width} height={height} unoptimized className={className} onError={() => setFailed(true)} />
 }
 
@@ -2706,7 +2711,10 @@ function ReviewWorkspace() {
                       const source = resolveMediaUrl(publicMediaUrl(media), siteOrigin)
                       return (
                         <button type="button" key={String(media.id)} className={selected ? 'is-selected' : ''} aria-pressed={selected} onClick={() => chooseChatMedia(media)}>
-                          {source ? <Image src={source} alt={media.alt || media.filename || t('workspace.image')} width={92} height={70} unoptimized /> : <span>{t('workspace.pageGalleryUnavailable')}</span>}
+                          {!source ? <span>{t('workspace.pageGalleryUnavailable')}</span>
+                            : String(media.mimeType || '').toLowerCase().startsWith('video/')
+                              ? <video src={source} aria-label={media.alt || media.filename || t('workspace.image')} width={92} height={70} muted playsInline preload="metadata" />
+                              : <Image src={source} alt={media.alt || media.filename || t('workspace.image')} width={92} height={70} unoptimized />}
                           <small>{media.alt || media.filename || `#${media.id}`}</small>
                           {media.tags?.length ? <small>{media.tags.slice(0, 4).join(' · ')}</small> : null}
                           {media.analysisStatus && media.analysisStatus !== 'ready' ? <small>{t(media.analysisStatus === 'failed' ? 'workspace.analysisUnavailable' : 'owner.galleryAnalysing')}</small> : null}
@@ -2788,7 +2796,7 @@ function ReviewWorkspace() {
                             className={selected ? 'is-selected' : ''}
                             onClick={() => chooseFieldMedia(mediaId)}
                           >
-                            <AdminMediaThumbnail src={publicMediaUrl(media)} alt={media.alt || media.filename || mediaId} width={84} height={64} unavailableLabel={t('workspace.pageGalleryUnavailable')} />
+                            <AdminMediaThumbnail src={publicMediaUrl(media)} alt={media.alt || media.filename || mediaId} width={84} height={64} mimeType={media.mimeType} unavailableLabel={t('workspace.pageGalleryUnavailable')} />
                             <span>{media.filename || media.alt || mediaId}</span>
                           </button>
                         )
@@ -2922,7 +2930,7 @@ function ReviewWorkspace() {
                                                       onClick={() => chooseEditorMedia(entry.key, mediaId)}
                                                     >
                                                       <span className="helloada-page-editor-gallery-thumb">
-                                                        <AdminMediaThumbnail src={mediaUrl} alt={media.alt || mediaLabel} width={120} height={92} unavailableLabel={t('workspace.pageGalleryUnavailable')} />
+                                                        <AdminMediaThumbnail src={mediaUrl} alt={media.alt || mediaLabel} width={120} height={92} mimeType={media.mimeType} unavailableLabel={t('workspace.pageGalleryUnavailable')} />
                                                       </span>
                                                       <span className="helloada-page-editor-gallery-caption">{mediaLabel}</span>
                                                     </button>
