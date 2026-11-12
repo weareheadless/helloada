@@ -19,7 +19,7 @@ import { useHelloAdaTranslations } from '../api/useHelloAdaTranslations'
 import { mediaOrigin, mediaReferenceId, mediaUrl as migrationMediaUrl, resolveMediaUrl } from '../lib/media'
 import { selectReviewDraft } from '../lib/select-review-draft'
 import { exactCandidatePreviewReady } from '../lib/candidate-preview'
-import { sourcePreviewMount, sourcePreviewUrl } from '../lib/source-preview'
+import { previewUrlForRoute } from '../lib/source-preview'
 import { canSendChatAttachments, remainingChatAttachmentSlots, splitChatImageFiles, uploadChatImage, uploadChatImages } from '../lib/chat-attachments'
 import { useHelloAdaSite } from '../config/provider'
 import { HelloAdaMark } from './HelloAdaLogo'
@@ -652,7 +652,6 @@ function ReviewWorkspace() {
   const [previewStep, setPreviewStep] = useState('')
   const [previewPlan, setPreviewPlan] = useState<PreviewPlan>()
   const [sourceReview, setSourceReview] = useState<{ draftId: number; sha: string; url: string }>()
-  const previewMount = sourcePreviewMount(site.tenantId)
   const [draftPreview, setDraftPreview] = useState<{ key: string; url: string; route: string }>()
   const sourceReviewIdentityRef = useRef('')
   const previewPlanRequestRef = useRef(0)
@@ -845,16 +844,20 @@ function ReviewWorkspace() {
     const path = selectedRoute === '/' ? '' : selectedRoute.replace(/^\//, '')
     if (designBuild?.preview?.preview_url && candidatePreviewReady
       && candidateReviewPreviewReady) {
-      const base = designBuild.preview.preview_url
-      return `${siteOrigin}${base}${path}`
+      // A design build reports its own address too; nothing is prefixed onto it.
+      const candidate = previewUrlForRoute(designBuild.preview.preview_url, selectedRoute)
+      if (!candidate) return 'about:blank'
+      return previewRevision
+        ? `${candidate}${candidate.includes('?') ? '&' : '?'}helloada_revision=${previewRevision}`
+        : candidate
     }
     // One candidate, one URL. The pending review always renders the compiled
     // candidate that publishing would make live; the published alias is only
     // the preview when there is nothing to review. A full-screen tab opens
     // this exact value, so both surfaces show the same artifact.
     if (sourceReview) {
-      if (!sourceReview.url) return 'about:blank'
-      const candidate = `${sourceReview.url}${path ? `/${path}` : ''}`
+      const candidate = previewUrlForRoute(sourceReview.url, selectedRoute)
+      if (!candidate) return 'about:blank'
       return previewRevision
         ? `${candidate}${candidate.includes('?') ? '&' : '?'}helloada_revision=${previewRevision}`
         : candidate
@@ -867,35 +870,11 @@ function ReviewWorkspace() {
     return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}helloada_revision=${previewRevision}`
   }, [candidatePreviewReady, candidateReviewPreviewReady, designBuild?.preview, draftPreview, draftPreviewKey, previewAlias, previewRevision, selectedRoute, siteOrigin, sourceReview])
 
-  const syncRouteFromPreview = useCallback(() => {
-    // Browsing inside the preview and the page selector must agree: a nav link
-    // click changes the frame, so move the selector to the matching route.
-    let pathname = ''
-    try {
-      pathname = previewFrameRef.current?.contentWindow?.location?.pathname || ''
-    } catch {
-      return
-    }
-    if (!pathname) return
-    const routes = workspace?.routes || []
-    const match = routes
-      .filter((route) => route.path !== '/')
-      .find((route) => pathname === route.path || pathname.endsWith(route.path))
-    const next = match?.path || (pathname.endsWith('/') ? '/' : '')
-    if (next && next !== selectedRoute) setSelectedRoute(next)
-  }, [selectedRoute, workspace?.routes])
-
   const handlePreviewLoad = useCallback(() => {
-    syncRouteFromPreview()
+    // The candidate runs on its own origin, so its document is not readable
+    // from here — and it must not be. The page selector drives the frame; a
+    // link inside the frame moves the frame alone.
     if (candidatePreviewReady) {
-      try {
-        const document = previewFrameRef.current?.contentDocument
-        if (!document?.body || document.documentElement.id === '__next_error__') throw new Error('preview_document_unavailable')
-      } catch {
-        setFailedCandidatePreview(candidatePreviewIdentity)
-        setPreviewStatus('error')
-        return
-      }
       setLoadedCandidatePreview(candidatePreviewIdentity)
       setFailedCandidatePreview((current) => current === candidatePreviewIdentity ? '' : current)
     } else if (previewPlan?.requires_build) {
@@ -903,7 +882,7 @@ function ReviewWorkspace() {
       return
     }
     setPreviewStatus('ready')
-  }, [candidatePreviewReady, candidatePreviewIdentity, previewPlan, syncRouteFromPreview])
+  }, [candidatePreviewReady, candidatePreviewIdentity, previewPlan])
 
   const previewStepLabel = (step: string) => {
     if (!step) return ''
@@ -1090,19 +1069,17 @@ function ReviewWorkspace() {
         draft_id?: number
         error?: string
         build_step?: string
-        runtime_mount?: string
+        preview_url?: string
       }
       if (!isCurrentRequest()) return
       const sameRevision = draft?.kind === 'design'
         ? Boolean(headSha && latest.commit === headSha)
         : Boolean(headSha && latest.commit === headSha && latest.draft_id === draft.id)
-      // The build is mounted where this workspace renders it. A job compiled
-      // for a different mount cannot be framed here, so it is rebuilt below.
-      const sameMount = Boolean(previewMount) && latest.runtime_mount === previewMount
-      const latestUrl = sameMount ? sourcePreviewUrl(previewMount, latest.id || '') : undefined
+      // The build reports the one address it is served at, signed for this
+      // exact job. The workspace frames that address as-is; it never composes
+      // one from parts, so it cannot disagree with what was compiled.
+      const latestUrl = typeof latest.preview_url === 'string' ? latest.preview_url.trim() : ''
       if (latestResponse.ok && sameRevision && latest.status === 'ready' && !latestUrl) {
-        // The build is framed at the tenant's own route. A build mounted
-        // anywhere else cannot be shown here, and rebuilding will not move it.
         setPreviewStatus('error')
         setError(t('workspace.previewError'))
         return
@@ -1154,7 +1131,7 @@ function ReviewWorkspace() {
       setPreviewStatus('error')
       setError(cause instanceof Error ? cause.message : t('workspace.previewError'))
     }
-  }, [designBuild?.draft_id, previewMount, t])
+  }, [designBuild?.draft_id, t])
 
   const retryPreview = useCallback(async () => {
     const draft = sourceReview
@@ -1181,7 +1158,7 @@ function ReviewWorkspace() {
       setPreviewStatus('error')
       setError(cause instanceof Error ? cause.message : t('workspace.previewError'))
     }
-  }, [loadPreviewPlan, previewMount, sourceReview, t])
+  }, [loadPreviewPlan, sourceReview, t])
 
   const openEditor = useCallback((focusKey?: string) => {
     if (!canEditPage) return

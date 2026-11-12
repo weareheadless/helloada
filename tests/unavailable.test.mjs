@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { documentRequest, previewUnavailable, workspacePathNotFound } from '../src/lib/unavailable.ts'
+import { documentRequest, workspacePathNotFound } from '../src/lib/unavailable.ts'
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
@@ -39,16 +39,6 @@ test('a data caller still gets JSON from the same address', async () => {
   assert.deepEqual(await response.json(), { error: 'not_found' })
 })
 
-test('a preview whose build is gone explains itself instead of showing a machine error', async () => {
-  const response = previewUnavailable(409)
-  assert.equal(response.status, 409)
-  assert.match(response.headers.get('content-type'), /text\/html/)
-  const body = await response.text()
-  assert.match(body, /This preview is no longer available/)
-  assert.match(body, /Reload the workspace page/)
-  assert.doesNotMatch(body, /Route not found|not ready/)
-})
-
 test('the workspace owns its namespace and the preview frame never shows a machine error', () => {
   const catchAll = read('src/app/api/helloada/[...path]/route.ts')
   assert.match(catchAll, /workspacePathNotFound\(request\)/)
@@ -56,8 +46,4 @@ test('the workspace owns its namespace and the preview frame never shows a machi
     assert.match(catchAll, new RegExp(`export const ${method} = notFound`))
   }
 
-  const preview = read('src/app/api/helloada/tenants/[tenantId]/source/preview/[job]/runtime/[[...path]]/route.ts')
-  // A rendered 404 from the candidate stays; only a non-HTML error is replaced.
-  assert.match(preview, /!contentType\.includes\('text\/html'\)/)
-  assert.match(preview, /return previewUnavailable\(response\.status\)/)
 })

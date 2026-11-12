@@ -34,7 +34,6 @@ test('the mailbox package is pinned to an exact release artifact', () => {
 })
 
 test('the owner proxy keeps attachment download headers', () => {
-  // One pass-through serves the site bridge and the tenant preview mount.
   const route = read('src/app/api/helloada/websites/[id]/owner/[...path]/route.ts')
   assert.match(route, /proxyTenantWorkspace\(/)
   const proxy = read('src/lib/tenant-proxy.ts')

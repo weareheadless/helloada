@@ -1,22 +1,13 @@
 import { siteAgentRequest } from '@/lib/website'
 
-const forwardable = [
-  'content-type', 'accept', 'accept-language',
-  // A compiled candidate distinguishes an RSC navigation from a document
-  // request by these headers; its frame runs through the owner route.
-  'rsc', 'next-router-state-tree', 'next-router-prefetch', 'next-router-segment-prefetch',
-  'next-url', 'purpose', 'x-nextjs-data',
-]
-
-/** The compiled candidate's redirect belongs to the browser, not this proxy. */
-const previewRuntimePath = (suffix: string) => /^source\/preview\/[^/]+\/runtime(?:\/|$)/.test(suffix)
+const forwardable = ['content-type', 'accept', 'accept-language']
 
 /**
- * One owner-authenticated pass-through to a tenant workspace.
+ * The owner-authenticated pass-through to a tenant workspace.
  *
- * Both owner routes use it: the site-scoped bridge and the tenant-scoped
- * compiled-preview mount. The caller has already resolved which website this
- * is and that the signed-in owner owns it.
+ * The caller has already resolved which website this is and that the signed-in
+ * owner owns it. Compiled previews do not travel through here: they run on
+ * their own origin.
  */
 export async function proxyTenantWorkspace(
   tenantId: string,
@@ -37,14 +28,10 @@ export async function proxyTenantWorkspace(
     if (value) forwardedHeaders[name] = value
   }
   const body = method === 'GET' || method === 'HEAD' ? undefined : await request.arrayBuffer()
-  const previewRuntime = previewRuntimePath(suffix)
   const response = await siteAgentRequest(tenantId, `/worker/${suffix}${query}`, {
     method,
     headers: forwardedHeaders,
     body,
-    // The compiled preview's redirect names a path on this same owner surface,
-    // so the browser follows it here instead of the API following it elsewhere.
-    redirect: previewRuntime ? 'manual' : 'follow',
     signal: AbortSignal.timeout(120_000),
   })
 

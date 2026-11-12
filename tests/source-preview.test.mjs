@@ -2,46 +2,39 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { sourcePreviewMount, sourcePreviewUrl } from '../src/workspace/lib/source-preview.ts'
+import { previewUrlForRoute } from '../src/workspace/lib/source-preview.ts'
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('the candidate mount comes from the tenant, so every starter builds one artifact', () => {
-  const mount = sourcePreviewMount('inmersion-freediving-bb2a4e404a7fcea4')
-  assert.equal(mount, '/api/helloada/tenants/inmersion-freediving-bb2a4e404a7fcea4/source/preview')
-  assert.equal(
-    sourcePreviewUrl(mount, '345e1df4-4995-4289-b140-cdaf930dac3b'),
-    '/api/helloada/tenants/inmersion-freediving-bb2a4e404a7fcea4/source/preview/345e1df4-4995-4289-b140-cdaf930dac3b/runtime',
-  )
-  // The same identity rule the preview service applies to the build.
-  assert.equal(sourcePreviewMount(''), '')
-  assert.equal(sourcePreviewMount('../tenant'), '')
-  assert.equal(sourcePreviewMount('tenant/other'), '')
+const PREVIEW = 'https://preview.helloada.app/p/inmersion-freediving-bb2a4e404a7fcea4/6782629d-412a-425b-99f1-1c19c8a5efbf/1799999999/0123456789abcdef'
+
+test('a route is appended to the address the build reported', () => {
+  assert.equal(previewUrlForRoute(PREVIEW, '/'), PREVIEW)
+  assert.equal(previewUrlForRoute(PREVIEW, '/courses'), `${PREVIEW}/courses`)
+  assert.equal(previewUrlForRoute(`${PREVIEW}/`, '/courses/'), `${PREVIEW}/courses`)
+  assert.equal(previewUrlForRoute(PREVIEW, ''), PREVIEW)
 })
 
-test('a job identity that is not a safe path never becomes a URL', () => {
-  const mount = '/api/helloada/tenants/tenant/source/preview'
-  assert.equal(sourcePreviewUrl(mount, ''), undefined)
-  assert.equal(sourcePreviewUrl(mount, '../elsewhere'), undefined)
-  assert.equal(sourcePreviewUrl('', 'job'), undefined)
+test('anything that is not the preview origin is refused', () => {
+  // The workspace frames what the build reports; it never composes one.
+  assert.equal(previewUrlForRoute('', '/courses'), undefined)
+  assert.equal(previewUrlForRoute('/p/tenant/job/1/sig', '/courses'), undefined)
+  assert.equal(previewUrlForRoute('http://preview.helloada.app/p/t/j/1/s', '/courses'), undefined)
+  assert.equal(previewUrlForRoute('https://preview.helloada.app/p/t/j/1/s" onload="x', '/'), undefined)
 })
 
-test('the workspace frames the candidate and opens that same URL full screen', () => {
+test('the frame and the full-screen tab open one address, and the app composes none', () => {
   const source = read('src/workspace/components/WebsiteWorkspace.tsx')
-  // No tenant handoff, no published alias standing in for the candidate.
-  assert.doesNotMatch(source, /exactSourcePreviewHref|externalDraftReview|Open exact preview/)
-  assert.doesNotMatch(source, /runtime_mount:/)
   assert.match(source, /src=\{previewUrl\}/)
   assert.match(source, /href=\{previewUrl\}/)
+  // No mount derivation and no tenant-scoped route: the build owns the address.
+  assert.doesNotMatch(source, /sourcePreviewMount|sourcePreviewUrl|runtime_mount/)
+  // The published alias is only the preview when there is nothing to review.
+  assert.match(source, /previewUrlForRoute\(sourceReview\.url, selectedRoute\)/)
 })
 
-test('the tenant preview route proxies through the owner session', () => {
-  const route = read('src/app/api/helloada/tenants/[tenantId]/source/preview/[job]/runtime/[[...path]]/route.ts')
-  assert.match(route, /ownedWebsiteByTenant\(auth, tenantId\)/)
-  assert.match(route, /proxyTenantWorkspace\(tenantId, String\(auth\.user\.id\)/)
+test('the workspace no longer proxies a compiled preview', () => {
   const proxy = read('src/lib/tenant-proxy.ts')
-  assert.match(proxy, /'rsc'/)
-  assert.match(proxy, /'next-router-state-tree'/)
-  assert.match(proxy, /redirect: previewRuntime \? 'manual' : 'follow'/)
-  assert.match(proxy, /out\.set\('location', location\)/)
+  assert.doesNotMatch(proxy, /next-router-state-tree|previewRuntimePath|redirect: previewRuntime/)
+  assert.match(proxy, /siteAgentRequest\(tenantId, `\/worker\/\$\{suffix\}\$\{query\}`/)
 })

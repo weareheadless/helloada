@@ -29,33 +29,6 @@ export async function ownedWebsite(auth: Awaited<ReturnType<typeof currentUser>>
   return byId.docs[0] || null
 }
 
-/**
- * Resolve the website for a tenant identity.
- *
- * The compiled candidate's mount is derived from the tenant id, so its own
- * owner route resolves the same website that the workspace already shows.
- */
-export async function ownedWebsiteByTenant(
-  auth: Awaited<ReturnType<typeof currentUser>>,
-  tenantId: string,
-) {
-  const tenant = String(tenantId || '').trim()
-  if (!auth || !tenant) return null
-  const found = await auth.payload.find({
-    collection: 'websites',
-    req: auth.req,
-    overrideAccess: false,
-    where: {
-      and: [
-        { tenantId: { equals: tenant } },
-        websiteScope(auth.user),
-      ],
-    },
-    limit: 1,
-  })
-  return found.docs[0] || null
-}
-
 export async function siteAgentRequest(tenantId: string, path: string, init: RequestInit = {}) {
   const baseUrl = String(process.env.SITE_AGENT_URL || '')
     .trim()

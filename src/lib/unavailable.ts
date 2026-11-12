@@ -52,16 +52,6 @@ const pageResponse = (status: number, title: string, detail: string) => new Resp
 export const documentRequest = (request: Request): boolean =>
   (request.headers.get('accept') || '').toLowerCase().includes('text/html')
 
-/**
- * The compiled candidate is gone: its build was cleaned up, or the address came
- * from a workspace version that mounted previews somewhere else.
- */
-export const previewUnavailable = (status = 404): Response => pageResponse(
-  status,
-  'This preview is no longer available',
-  'The build behind it has finished or been cleaned up, or this address was opened by an earlier version of the workspace. Reload the workspace page to see the current preview.',
-)
-
 /** An address in the workspace API namespace that this app does not serve. */
 export const workspacePathNotFound = (request: Request): Response => (
   documentRequest(request)
