@@ -1,13 +1,12 @@
 import { headers } from 'next/headers'
 
 import { currentUser } from '@/lib/auth'
-import { ownedWebsite, siteAgentRequest } from '@/lib/website'
+import { proxyTenantWorkspace } from '@/lib/tenant-proxy'
+import { ownedWebsite } from '@/lib/website'
 
 export const dynamic = 'force-dynamic'
 
 type RouteContext = { params: Promise<{ id: string; path?: string[] }> }
-
-const forwardable = ['content-type', 'accept', 'accept-language']
 
 async function proxy(request: Request, context: RouteContext) {
   const auth = await currentUser(await headers())
@@ -17,37 +16,7 @@ async function proxy(request: Request, context: RouteContext) {
   if (!website) return Response.json({ error: 'website_not_found' }, { status: 404 })
   const tenantId = String(website.tenantId || '').trim()
   if (!tenantId) return Response.json({ error: 'workspace_bootstrap_pending' }, { status: 409 })
-
-  const incoming = new URL(request.url)
-  const suffix = (path || []).join('/')
-  const query = incoming.search
-  const method = request.method.toUpperCase()
-  const forwardedHeaders: Record<string, string> = {
-    // The site-agent resolves the tenant and injects its workspace token. The
-    // owner subject is the only identity this request may assert.
-    'x-helloada-owner-subject': String(auth.user.id),
-  }
-  for (const name of forwardable) {
-    const value = request.headers.get(name)
-    if (value) forwardedHeaders[name] = value
-  }
-  const body = method === 'GET' || method === 'HEAD' ? undefined : await request.arrayBuffer()
-  const response = await siteAgentRequest(tenantId, `/worker/${suffix}${query}`, {
-    method,
-    headers: forwardedHeaders,
-    body,
-    signal: AbortSignal.timeout(120_000),
-  })
-
-  const out = new Headers({ 'cache-control': 'no-store' })
-  const contentType = response.headers.get('content-type')
-  if (contentType) out.set('content-type', contentType)
-  // Attachments and exports must keep their download name.
-  const disposition = response.headers.get('content-disposition')
-  if (disposition) out.set('content-disposition', disposition)
-  const cookies = response.headers.getSetCookie?.() || []
-  for (const cookie of cookies) out.append('set-cookie', cookie)
-  return new Response(response.body, { status: response.status, headers: out })
+  return proxyTenantWorkspace(tenantId, String(auth.user.id), (path || []).join('/'), request)
 }
 
 export const GET = proxy

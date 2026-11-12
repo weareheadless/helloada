@@ -19,7 +19,7 @@ import { useHelloAdaTranslations } from '../api/useHelloAdaTranslations'
 import { mediaOrigin, mediaReferenceId, mediaUrl as migrationMediaUrl, resolveMediaUrl } from '../lib/media'
 import { selectReviewDraft } from '../lib/select-review-draft'
 import { exactCandidatePreviewReady } from '../lib/candidate-preview'
-import { exactSourcePreviewHref } from '../lib/exact-preview'
+import { sourcePreviewMount, sourcePreviewUrl } from '../lib/source-preview'
 import { canSendChatAttachments, remainingChatAttachmentSlots, splitChatImageFiles, uploadChatImage, uploadChatImages } from '../lib/chat-attachments'
 import { useHelloAdaSite } from '../config/provider'
 import { HelloAdaMark } from './HelloAdaLogo'
@@ -652,10 +652,7 @@ function ReviewWorkspace() {
   const [previewStep, setPreviewStep] = useState('')
   const [previewPlan, setPreviewPlan] = useState<PreviewPlan>()
   const [sourceReview, setSourceReview] = useState<{ draftId: number; sha: string; url: string }>()
-  const externalDraftReview = Boolean(sourceReview && site.routes.manage)
-  const exactPreviewHref = externalDraftReview
-    ? exactSourcePreviewHref(site.routes.manage, sourceReview?.url)
-    : undefined
+  const previewMount = sourcePreviewMount(site.tenantId)
   const [draftPreview, setDraftPreview] = useState<{ key: string; url: string; route: string }>()
   const sourceReviewIdentityRef = useRef('')
   const previewPlanRequestRef = useRef(0)
@@ -845,27 +842,30 @@ function ReviewWorkspace() {
 
   const previewUrl = useMemo(() => {
     if (typeof window === 'undefined') return selectedRoute
-    if (externalDraftReview) {
-      const path = selectedRoute === '/' ? '' : selectedRoute.replace(/^\//, '')
-      return `${previewAlias}/${path}`
-    }
+    const path = selectedRoute === '/' ? '' : selectedRoute.replace(/^\//, '')
     if (designBuild?.preview?.preview_url && candidatePreviewReady
       && candidateReviewPreviewReady) {
       const base = designBuild.preview.preview_url
-      const path = selectedRoute === '/' ? '' : selectedRoute.replace(/^\//, '')
       return `${siteOrigin}${base}${path}`
+    }
+    // One candidate, one URL. The pending review always renders the compiled
+    // candidate that publishing would make live; the published alias is only
+    // the preview when there is nothing to review. A full-screen tab opens
+    // this exact value, so both surfaces show the same artifact.
+    if (sourceReview) {
+      if (!sourceReview.url) return 'about:blank'
+      const candidate = `${sourceReview.url}${path ? `/${path}` : ''}`
+      return previewRevision
+        ? `${candidate}${candidate.includes('?') ? '&' : '?'}helloada_revision=${previewRevision}`
+        : candidate
     }
     if (draftPreview && draftPreview.key === draftPreviewKey) {
       return `${siteOrigin}${draftPreview.url}`
     }
-    const path = selectedRoute === '/' ? '' : selectedRoute.replace(/^\//, '')
-    if (sourceReview && !sourceReview.url) return 'about:blank'
-    const baseUrl = sourceReview
-      ? `${siteOrigin}${sourceReview.url}${path}`
-      : `${previewAlias}/${path}`
+    const baseUrl = `${previewAlias}/${path}`
     if (!previewRevision) return baseUrl
     return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}helloada_revision=${previewRevision}`
-  }, [candidatePreviewReady, candidateReviewPreviewReady, designBuild?.preview, draftPreview, draftPreviewKey, externalDraftReview, previewAlias, previewRevision, selectedRoute, siteOrigin, sourceReview])
+  }, [candidatePreviewReady, candidateReviewPreviewReady, designBuild?.preview, draftPreview, draftPreviewKey, previewAlias, previewRevision, selectedRoute, siteOrigin, sourceReview])
 
   const syncRouteFromPreview = useCallback(() => {
     // Browsing inside the preview and the page selector must agree: a nav link
@@ -912,7 +912,7 @@ function ReviewWorkspace() {
     return translated === key ? '' : translated
   }
 
-  const previewStatusMessage = externalDraftReview ? '' : previewStatus === 'refreshing'
+  const previewStatusMessage = previewStatus === 'refreshing'
     ? t('workspace.previewRefreshing')
     : previewStatus === 'build-required'
       ? t('workspace.previewBuildRequired')
@@ -1090,15 +1090,26 @@ function ReviewWorkspace() {
         draft_id?: number
         error?: string
         build_step?: string
+        runtime_mount?: string
       }
       if (!isCurrentRequest()) return
       const sameRevision = draft?.kind === 'design'
         ? Boolean(headSha && latest.commit === headSha)
         : Boolean(headSha && latest.commit === headSha && latest.draft_id === draft.id)
-      if (latestResponse.ok && sameRevision && latest.status === 'ready' && latest.id) {
+      // The build is mounted where this workspace renders it. A job compiled
+      // for a different mount cannot be framed here, so it is rebuilt below.
+      const sameMount = Boolean(previewMount) && latest.runtime_mount === previewMount
+      const latestUrl = sameMount ? sourcePreviewUrl(previewMount, latest.id || '') : undefined
+      if (latestResponse.ok && sameRevision && latest.status === 'ready' && !latestUrl) {
+        // The build is framed at the tenant's own route. A build mounted
+        // anywhere else cannot be shown here, and rebuilding will not move it.
+        setPreviewStatus('error')
+        setError(t('workspace.previewError'))
+        return
+      }
+      if (latestResponse.ok && sameRevision && latest.status === 'ready' && latestUrl) {
         setPreviewStep('')
-        setSourceReview({ draftId: draft.id, sha: headSha,
-          url: `/api/helloada/source/preview/${encodeURIComponent(latest.id)}/runtime/` })
+        setSourceReview({ draftId: draft.id, sha: headSha, url: latestUrl })
         setPreviewPlan({ ...plan, head_sha: headSha, status: 'ready', requires_build: false })
         const identity = `${draft?.id || ''}:${headSha}:${latest.id}`
         if (sourceReviewIdentityRef.current === identity) return
@@ -1143,7 +1154,7 @@ function ReviewWorkspace() {
       setPreviewStatus('error')
       setError(cause instanceof Error ? cause.message : t('workspace.previewError'))
     }
-  }, [designBuild?.draft_id, t])
+  }, [designBuild?.draft_id, previewMount, t])
 
   const retryPreview = useCallback(async () => {
     const draft = sourceReview
@@ -1170,7 +1181,7 @@ function ReviewWorkspace() {
       setPreviewStatus('error')
       setError(cause instanceof Error ? cause.message : t('workspace.previewError'))
     }
-  }, [loadPreviewPlan, sourceReview, t])
+  }, [loadPreviewPlan, previewMount, sourceReview, t])
 
   const openEditor = useCallback((focusKey?: string) => {
     if (!canEditPage) return
@@ -2422,41 +2433,54 @@ function ReviewWorkspace() {
                      : `${t('workspace.candidatePreviewPreparing')}${previewStepLabel(previewStep) ? ` · ${previewStepLabel(previewStep)}` : ''}`}
                </p>
              ) : null}
-             {externalDraftReview ? (
-               <div className="helloada-preview-external" role="status">
-                 <span>{exactPreviewHref
-                   ? 'Exact preview ready. It opens in your website’s own session.'
-                   : 'Preparing the exact preview…'}</span>
-                 {exactPreviewHref ? (
-                   <a href={exactPreviewHref} target="_blank" rel="noopener noreferrer">Open exact preview ↗</a>
-                 ) : null}
-               </div>
-             ) : null}
+
              <div className={`helloada-preview-frame-shell is-${previewViewport}`}>
-               <iframe
-                 ref={previewFrameRef}
-                 key={`${previewUrl}:${previewRevision}`}
-                 className="helloada-preview-frame"
-                 title={t('workspace.previewTitle')}
-                 src={previewUrl}
-                 onLoad={handlePreviewLoad}
-                 onError={() => setPreviewStatus('error')}
-               />
-               {previewStatusMessage ? (
+               {previewUrl === 'about:blank' ? (
+                 // A pending candidate is never replaced by the published site:
+                 // until its exact mount is ready there is nothing to show.
                  <div
-                   className={`helloada-preview-status is-${previewStatus}`}
+                   className={`helloada-preview-status is-${previewStatus === 'error' ? 'error' : 'refreshing'}`}
                    role="status"
                    aria-live="polite"
                  >
-                   {previewStatus === 'refreshing' ? <span className="helloada-preview-status-spinner" aria-hidden="true" /> : null}
-                   <span>{previewStatusMessage}</span>
-                    {previewStatus === 'error' && sourceReview?.draftId ? (
-                      <button type="button" className="helloada-preview-retry" onClick={() => void retryPreview()}>
-                        {t('owner.retry')}
-                      </button>
-                    ) : null}
+                   {previewStatus === 'error' ? null : <span className="helloada-preview-status-spinner" aria-hidden="true" />}
+                   <span>{previewStatus === 'error'
+                     ? t('workspace.previewError')
+                     : `${t('workspace.previewRefreshing')}${previewStepLabel(previewStep) ? ` · ${previewStepLabel(previewStep)}` : ''}`}</span>
+                   {previewStatus === 'error' && sourceReview?.draftId ? (
+                     <button type="button" className="helloada-preview-retry" onClick={() => void retryPreview()}>
+                       {t('owner.retry')}
+                     </button>
+                   ) : null}
                  </div>
-               ) : null}
+               ) : (
+                 <>
+                   <iframe
+                     ref={previewFrameRef}
+                     key={`${previewUrl}:${previewRevision}`}
+                     className="helloada-preview-frame"
+                     title={t('workspace.previewTitle')}
+                     src={previewUrl}
+                     onLoad={handlePreviewLoad}
+                     onError={() => setPreviewStatus('error')}
+                   />
+                   {previewStatusMessage ? (
+                     <div
+                       className={`helloada-preview-status is-${previewStatus}`}
+                       role="status"
+                       aria-live="polite"
+                     >
+                       {previewStatus === 'refreshing' ? <span className="helloada-preview-status-spinner" aria-hidden="true" /> : null}
+                       <span>{previewStatusMessage}</span>
+                       {previewStatus === 'error' && sourceReview?.draftId ? (
+                         <button type="button" className="helloada-preview-retry" onClick={() => void retryPreview()}>
+                           {t('owner.retry')}
+                         </button>
+                       ) : null}
+                     </div>
+                   ) : null}
+                 </>
+               )}
                {activePreviewEditKey && previewEditTargets.some((target) => target.key === activePreviewEditKey && (manualEditing || target.type === 'image')) ? (
                 <div className="helloada-preview-edit-overlay" role="group" aria-label={t('workspace.quickEditLabel')}>
                   {previewEditTargets.filter((target) => target.key === activePreviewEditKey && (manualEditing || target.type === 'image')).map((target) => (
@@ -2473,7 +2497,7 @@ function ReviewWorkspace() {
                 </div>
               ) : null}
             </div>
-          <footer className="helloada-preview-footer"><span className={hasDraft ? 'is-draft' : ''}><i aria-hidden="true" />{hasDraft ? t('owner.readyReview') : t('owner.websitePreview')}</span><span>{hasDraft ? t('owner.notLive') : t('owner.previewHint')}</span></footer>
+          <footer className="helloada-preview-footer"><span className={hasDraft ? 'is-draft' : ''}><i aria-hidden="true" />{hasDraft ? t('owner.readyReview') : t('owner.websitePreview')}</span><span>{hasDraft ? t('owner.notLive') : t('owner.previewHint')}</span>{previewUrl !== 'about:blank' ? <a href={previewUrl} target="_blank" rel="noopener noreferrer">{t('owner.openFullPreview')}</a> : null}</footer>
         </section> : buildSurfaceVisible && designBuild ? (
           <section id="helloada-website-pane" className={`helloada-build-surface ${designBuild.state === 'failed' ? 'is-failed' : ''} ${buildStalled ? 'is-stalled' : ''}`} aria-label={t('workspace.buildTitle')}>
             <header className="helloada-build-strip">

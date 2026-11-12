@@ -57,7 +57,6 @@ export async function loadSiteView(siteKey: string) {
       workspaceApi: `/api/helloada/websites/${encodeURIComponent(slug)}/owner`,
       liveSite: String(site.url || origin),
       preview,
-      manage: `/admin-entry/${tenantId}`,
     },
     content: {
       primaryCollections: site.content?.primaryCollections || ['pages', 'posts', 'products', 'media'],

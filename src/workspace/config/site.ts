@@ -7,8 +7,6 @@ export type HelloAdaSiteConfig = {
     workspaceApi: string
     liveSite: string
     preview: string
-    /** Control-plane handoff entry for the tenant admin, when it is remote. */
-    manage?: string
   }
   content: {
     primaryCollections: readonly string[]

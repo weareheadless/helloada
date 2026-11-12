@@ -252,6 +252,8 @@
   .helloada-preview-footer { display: flex; justify-content: space-between; align-items: center; gap: 15px; min-height: 40px; padding: 8px 18px; font-size: 9px; color: var(--helloada-dim); }
   .helloada-preview-footer > span:first-child { display: flex; align-items: center; gap: 6px; color: var(--helloada-muted); white-space: nowrap; }
   .helloada-preview-footer i { width: 4px; height: 4px; border-radius: 50%; background: var(--helloada-dim); }
+  .helloada-preview-footer > a { color: var(--helloada-violet); white-space: nowrap; text-decoration: none; }
+  .helloada-preview-footer > a:hover { text-decoration: underline; }
   .helloada-preview-footer .is-draft i { background: var(--helloada-violet); }
   .helloada-review-decision { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; margin-left: auto; padding: 0; border: 0; background: transparent; }
   .helloada-owner-workspace .helloada-draft-action.is-publish { min-height: 34px; padding: 0 14px; background: var(--helloada-cyan); border: 0; border-radius: 999px; color: var(--helloada-action-ink); font-size: 11px; font-weight: 600; }
