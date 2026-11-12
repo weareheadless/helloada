@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 
 import { currentUser } from '@/lib/auth'
 import { proxyTenantWorkspace } from '@/lib/tenant-proxy'
+import { documentRequest, previewUnavailable } from '@/lib/unavailable'
 import { ownedWebsiteByTenant } from '@/lib/website'
 
 export const dynamic = 'force-dynamic'
@@ -28,7 +29,15 @@ async function serve(request: Request, context: RouteContext) {
     return Response.json({ error: 'website_not_found' }, { status: 404 })
   }
   const suffix = ['source', 'preview', job, 'runtime', ...(path || [])].join('/')
-  return proxyTenantWorkspace(tenantId, String(auth.user.id), suffix, request)
+  const response = await proxyTenantWorkspace(tenantId, String(auth.user.id), suffix, request)
+  // The candidate's own 404 is a rendered page and stays. A machine error — the
+  // preview runtime gone, the build cleaned up — would otherwise reach the
+  // frame as JSON, so a document request gets the readable answer instead.
+  const contentType = (response.headers.get('content-type') || '').toLowerCase()
+  if (response.status >= 400 && documentRequest(request) && !contentType.includes('text/html')) {
+    return previewUnavailable(response.status)
+  }
+  return response
 }
 
 export const GET = serve
