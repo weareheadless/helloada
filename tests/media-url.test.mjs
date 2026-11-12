@@ -69,7 +69,7 @@ test('the gallery uploads several images and videos in one pass', () => {
   assert.match(gallery, /multiple/)
   assert.match(gallery, /const upload = async \(files: File\[\]\)/)
   assert.match(gallery, /for \(const \[index, file\] of accepted\.entries\(\)\)/)
-  assert.match(gallery, /startsWith\('image\/'\) \|\| file\.type\.startsWith\('video\/'\)/)
+  assert.match(gallery, /mediaUploadKind\(file\) !== undefined/)
   assert.match(gallery, /params\.set\('asset_type', media\.mimeType\)/)
 })
 

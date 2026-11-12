@@ -13,6 +13,7 @@ import { EditableRichTextEditor } from './EditableRichTextEditor'
 import { PublicationProgress } from './PublicationProgress'
 import { CheckpointHistory } from './CheckpointHistory'
 import { fetchHelloAda } from '../api/fetchHelloAda'
+import { uploadMediaFile } from '../api/upload-media'
 import { helloAdaPath } from '../config/site'
 import { useHelloAdaTranslations } from '../api/useHelloAdaTranslations'
 import { mediaOrigin, mediaReferenceId, mediaUrl as migrationMediaUrl, resolveMediaUrl } from '../lib/media'
@@ -1260,16 +1261,21 @@ function ReviewWorkspace() {
 
   const uploadEditorImage = useCallback(async (file: File, key: string) => {
     setEditorError('')
-    const form = new FormData()
-    form.append('file', file)
     try {
-      const response = await fetchHelloAda('/api/helloada/media/upload', { method: 'POST', body: form })
-      const body = (await response.json()) as { attachment?: ChatAttachment; message?: string }
+      const body = await uploadMediaFile<{ attachment?: ChatAttachment; message?: string }>(file, {
+        resolvePath: helloAdaPath,
+        messages: {
+          unsupported: t('workspace.unsupportedImage'),
+          tooLarge: t('owner.uploadTooLarge'),
+          timedOut: t('owner.uploadTimeout'),
+          failed: t('error.pageImageUpload'),
+        },
+      })
       const uploadedUrl = publicMediaUrl(body.attachment?.url || body.attachment?.preview_url || '', {
         id: body.attachment?.asset_id || '',
         filename: body.attachment?.name || 'image',
       })
-      if (!response.ok || !body.attachment?.asset_id || !uploadedUrl) throw new Error(responseMessage(body, t('error.pageImageUpload')))
+      if (!body.attachment?.asset_id || !uploadedUrl) throw new Error(t('error.pageImageUpload'))
       updateEditorEntry(key, {
         image: {
           id: body.attachment.asset_id,
@@ -1711,6 +1717,12 @@ function ReviewWorkspace() {
         const body = await uploadChatImage<{ attachment?: ChatAttachment; message?: string }>(file, {
           resolvePath: helloAdaPath,
           onProgress: (progress) => setUploadEntries((current) => current.map((item) => item.id === entry.id ? { ...item, progress } : item)),
+          messages: {
+            unsupported: t('workspace.unsupportedImage'),
+            tooLarge: t('owner.uploadTooLarge'),
+            timedOut: t('owner.uploadTimeout'),
+            failed: t('error.imageAttach'),
+          },
         })
         if (!body.attachment?.asset_id) throw new Error(responseMessage(body, t('error.imageAttach')))
         const attachment: ChatAttachment & { asset_id: number | string } = { ...body.attachment, asset_id: body.attachment.asset_id }
@@ -1874,16 +1886,21 @@ function ReviewWorkspace() {
   const uploadFieldImage = useCallback(async (file: File) => {
     if (!fieldEditorKey) return
     setFieldEditorError('')
-    const form = new FormData()
-    form.append('file', file)
     try {
-      const response = await fetchHelloAda('/api/helloada/media/upload', { method: 'POST', body: form })
-      const body = (await response.json()) as { attachment?: ChatAttachment; message?: string }
+      const body = await uploadMediaFile<{ attachment?: ChatAttachment; message?: string }>(file, {
+        resolvePath: helloAdaPath,
+        messages: {
+          unsupported: t('workspace.unsupportedImage'),
+          tooLarge: t('owner.uploadTooLarge'),
+          timedOut: t('owner.uploadTimeout'),
+          failed: t('error.pageImageUpload'),
+        },
+      })
       const uploadedUrl = publicMediaUrl(body.attachment?.url || body.attachment?.preview_url || '', {
         id: body.attachment?.asset_id || '',
         filename: body.attachment?.name || 'image',
       })
-      if (!response.ok || !body.attachment?.asset_id || !uploadedUrl) throw new Error(responseMessage(body, t('error.pageImageUpload')))
+      if (!body.attachment?.asset_id || !uploadedUrl) throw new Error(t('error.pageImageUpload'))
       updateFieldEditorEntry({
         image: {
           id: body.attachment.asset_id,

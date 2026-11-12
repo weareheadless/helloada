@@ -8,8 +8,10 @@ import { usePathname } from 'next/navigation'
 import { fetchHelloAda } from '../api/fetchHelloAda'
 import { useHelloAdaTranslations } from '../api/useHelloAdaTranslations'
 import { useHelloAdaSite } from '../config/provider'
+import { helloAdaPath } from '../config/site'
 import { mediaOrigin, mediaUrl, resolveMediaUrl } from '../lib/media'
 import { filterMedia, mediaCounts, mediaKind, type GalleryFilter } from '../lib/gallery-filter'
+import { mediaUploadKind, uploadMediaFile } from '../api/upload-media'
 import { HelloAdaMark } from './HelloAdaLogo'
 import { WorkspaceIcon } from './WorkspaceIcon'
 import { responseMessage } from '../api/response-message'
@@ -69,6 +71,7 @@ export function HelloAdaGallery() {
   const [uploading, setUploading] = useState(false)
   const [uploadedCount, setUploadedCount] = useState(0)
   const [uploadTotal, setUploadTotal] = useState(0)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const analysisPollsRef = useRef(0)
@@ -104,7 +107,7 @@ export function HelloAdaGallery() {
    */
   const upload = async (files: File[]) => {
     if (uploading) return
-    const accepted = files.filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/'))
+    const accepted = files.filter((file) => mediaUploadKind(file) !== undefined)
     const rejected = files.filter((file) => !accepted.includes(file))
     if (!accepted.length) {
       setError(t('owner.galleryUnsupported'))
@@ -115,19 +118,27 @@ export function HelloAdaGallery() {
     setError('')
     setUploadedCount(0)
     setUploadTotal(accepted.length)
+    setUploadProgress(0)
     const failures = rejected.map((file) => `${file.name}: ${t('owner.galleryUnsupported')}`)
     let uploaded = 0
     try {
       for (const [index, file] of accepted.entries()) {
         try {
-          const form = new FormData()
-          form.append('file', file)
-          const response = await fetchHelloAda('/api/helloada/media/upload', { method: 'POST', body: form })
-          const body = (await response.json()) as { attachment?: { asset_id?: string | number; url?: string; preview_url?: string; name?: string; alt_text?: string }; message?: string }
-          if (!response.ok || body.attachment?.asset_id === undefined) throw new Error(responseMessage(body, t('error.imageAttach')))
+          setUploadProgress(0)
+          const body = await uploadMediaFile<{ attachment?: { asset_id?: string | number; url?: string; preview_url?: string; name?: string; alt_text?: string }; message?: string }>(file, {
+            resolvePath: helloAdaPath,
+            onProgress: setUploadProgress,
+            messages: {
+              unsupported: t('owner.galleryUnsupported'),
+              tooLarge: t('owner.uploadTooLarge'),
+              timedOut: t('owner.uploadTimeout'),
+              failed: t('owner.uploadFailed'),
+            },
+          })
+          if (body.attachment?.asset_id === undefined) throw new Error(t('owner.uploadFailed'))
           uploaded += 1
         } catch (cause) {
-          failures.push(`${file.name}: ${cause instanceof Error ? cause.message : t('error.imageAttach')}`)
+          failures.push(`${file.name}: ${cause instanceof Error ? cause.message : t('owner.uploadFailed')}`)
         }
         setUploadedCount(index + 1)
       }
@@ -139,6 +150,7 @@ export function HelloAdaGallery() {
       setUploading(false)
       setUploadTotal(0)
       setUploadedCount(0)
+      setUploadProgress(0)
       if (inputRef.current) inputRef.current.value = ''
     }
     if (failures.length) setError(failures.join('\n'))
@@ -167,6 +179,7 @@ export function HelloAdaGallery() {
             <p className="helloada-eyebrow">{site.siteName}</p>
             <h1>{t('owner.galleryTitle')}</h1>
             <p>{t('owner.galleryIntro')}</p>
+            <p className="helloada-gallery-limit">{t('owner.galleryLimit')}</p>
           </div>
         </div>
         <div className="helloada-gallery-actions">
@@ -174,7 +187,7 @@ export function HelloAdaGallery() {
           <button className="helloada-gallery-upload" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
             <WorkspaceIcon name="plus" size={15} />
             {uploading
-              ? `${t('workspace.attachingImage')} ${Math.min(uploadedCount + 1, uploadTotal)}/${uploadTotal}`
+              ? `${t('workspace.attachingImage')} ${Math.min(uploadedCount + 1, uploadTotal)}/${uploadTotal}${uploadProgress > 0 ? ` · ${uploadProgress}%` : ''}`
               : t('owner.galleryUpload')}
           </button>
           <input
