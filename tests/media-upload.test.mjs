@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { MEDIA_UPLOAD_LIMIT_BYTES, mediaUploadKind, mediaUploadSizeError } from '../src/workspace/api/upload-media.ts'
+import { MEDIA_UPLOAD_LIMIT_BYTES, mediaUploadKind, mediaUploadRejection, mediaUploadSizeError } from '../src/workspace/api/upload-media.ts'
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
@@ -23,6 +23,17 @@ test('the picker and the tenant bridge share one 25 MB ceiling', () => {
   assert.equal(MEDIA_UPLOAD_LIMIT_BYTES, 25 * 1024 * 1024)
   assert.equal(mediaUploadSizeError(MEDIA_UPLOAD_LIMIT_BYTES, 'too large'), undefined)
   assert.equal(mediaUploadSizeError(MEDIA_UPLOAD_LIMIT_BYTES + 1, 'too large'), 'too large')
+})
+
+test('a rejection from an ingress is reported by its status, not as a connection fault', () => {
+  const messages = { unsupported: 'unsupported', tooLarge: 'tooLarge', timedOut: 'timedOut', failed: 'failed' }
+  // The shared API's ingress answers an oversized body with its own HTML 413.
+  assert.equal(mediaUploadRejection(413, messages), 'tooLarge')
+  assert.equal(mediaUploadRejection(415, messages), 'unsupported')
+  assert.equal(mediaUploadRejection(502, messages), 'failed')
+  const source = read('src/workspace/api/upload-media.ts')
+  // A body that is not the bridge's JSON still reaches the status decision.
+  assert.match(source, /catch \{\s*\/\/ An intermediary answered with its own page[\s\S]{0,320}mediaUploadRejection\(request\.status, options\.messages\)/)
 })
 
 test('a media upload is bounded by progress, not by a fixed wall clock', () => {

@@ -47,6 +47,21 @@ export function mediaUploadSizeError(size: number, tooLarge: string): string | u
   return size > MEDIA_UPLOAD_LIMIT_BYTES ? tooLarge : undefined
 }
 
+/**
+ * A rejection is not always the workspace bridge's JSON.
+ *
+ * The bridge sits behind the shared API's ingress, and an ingress rejects an
+ * oversized body with its own HTML page before the media handler ever runs.
+ * Reading that as "check your connection" sends the owner chasing a network
+ * problem that does not exist, so an unreadable rejection is classified by its
+ * status instead.
+ */
+export function mediaUploadRejection(status: number, messages: MediaUploadMessages): string {
+  if (status === 413) return messages.tooLarge
+  if (status === 415) return messages.unsupported
+  return messages.failed
+}
+
 type UploadOptions = {
   resolvePath?: (path: string) => string
   onProgress?: (progress: number) => void
@@ -114,12 +129,18 @@ export function uploadMediaFile<T>(file: File, options: UploadOptions): Promise<
       try {
         body = JSON.parse(request.responseText || '{}') as typeof body
       } catch {
-        finish(new Error(options.messages.failed))
+        // An intermediary answered with its own page (an ingress 413, a proxy
+        // error). The status still names the reason; the body does not.
+        finish(new Error(
+          request.status >= 200 && request.status < 300
+            ? options.messages.failed
+            : mediaUploadRejection(request.status, options.messages),
+        ))
         return
       }
       if (request.status < 200 || request.status >= 300) {
         const message = typeof body.message === 'string' ? body.message.trim() : ''
-        finish(new Error(message || options.messages.failed))
+        finish(new Error(message || mediaUploadRejection(request.status, options.messages)))
         return
       }
       finish(undefined, body as T)
