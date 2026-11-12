@@ -85,8 +85,12 @@ test('video attachments render as video in the chat', () => {
 test('video media renders as video, not as a broken image', () => {
   const gallery = read('src/workspace/components/HelloAdaGallery.tsx')
   assert.match(gallery, /mimeType\?: string \| null/)
-  assert.match(gallery, /const isVideo = \(media: GalleryMedia\) => String\(media\.mimeType \|\| ''\)\.toLowerCase\(\)\.startsWith\('video\/'\)/)
+  // One helper decides what a clip is, and the card renders it with a player
+  // plus a visible "Video" badge so it is not mistaken for a still.
+  assert.match(gallery, /const isVideo = \(media: GalleryMedia\) => mediaKind\(media\.mimeType\) === 'video'/)
   assert.match(gallery, /isVideo\(item\) \? <video src=\{source\}/)
+  assert.match(gallery, /helloada-gallery-kind/)
+  assert.match(gallery, /owner\.galleryVideos/)
 
   const workspace = read('src/workspace/components/WebsiteWorkspace.tsx')
   assert.match(workspace, /mimeType\?: string \| null/)

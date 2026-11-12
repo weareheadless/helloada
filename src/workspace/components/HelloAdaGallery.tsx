@@ -9,6 +9,7 @@ import { fetchHelloAda } from '../api/fetchHelloAda'
 import { useHelloAdaTranslations } from '../api/useHelloAdaTranslations'
 import { useHelloAdaSite } from '../config/provider'
 import { mediaOrigin, mediaUrl, resolveMediaUrl } from '../lib/media'
+import { filterMedia, mediaCounts, mediaKind, type GalleryFilter } from '../lib/gallery-filter'
 import { HelloAdaMark } from './HelloAdaLogo'
 import { WorkspaceIcon } from './WorkspaceIcon'
 import { responseMessage } from '../api/response-message'
@@ -29,7 +30,7 @@ type GalleryMedia = {
 }
 
 /** The media library holds videos as well as images; only images can be drawn with <img>. */
-const isVideo = (media: GalleryMedia) => String(media.mimeType || '').toLowerCase().startsWith('video/')
+const isVideo = (media: GalleryMedia) => mediaKind(media.mimeType) === 'video'
 
 type GalleryResponse = {
   media?: GalleryMedia[]
@@ -61,6 +62,7 @@ export function HelloAdaGallery() {
   const origin = mediaOrigin(site.routes.liveSite)
   const [media, setMedia] = useState<GalleryMedia[]>([])
   const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState<GalleryFilter>('all')
   const [loading, setLoading] = useState(true)
   const [hasNextPage, setHasNextPage] = useState(false)
   const [page, setPage] = useState(1)
@@ -145,6 +147,8 @@ export function HelloAdaGallery() {
   // Ada analyzes uploads in the background; refresh a bounded number of times
   // so the owner sees the resulting alt text and tags without reloading.
   const analyzing = media.some((item) => item.analysisStatus === 'pending' || item.analysisStatus === 'processing')
+  const counts = mediaCounts(media)
+  const visible = filterMedia(media, filter)
   useEffect(() => {
     if (!analyzing || analysisPollsRef.current >= 30) return
     const timer = window.setTimeout(() => {
@@ -193,14 +197,32 @@ export function HelloAdaGallery() {
             <span>{t('workspace.pageGallerySearchLabel')}</span>
             <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('workspace.pageGallerySearchPlaceholder')} />
           </label>
-          <span className="helloada-gallery-count">{media.length} {t('owner.galleryCount')}</span>
+          <div className="helloada-gallery-filter" role="group" aria-label={t('owner.galleryFilter')}>
+            {([
+              ['all', t('owner.galleryAll'), media.length],
+              ['image', t('owner.galleryImages'), counts.image],
+              ['video', t('owner.galleryVideos'), counts.video],
+            ] as const).map(([value, label, count]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={filter === value}
+                className={`helloada-gallery-filter-chip${filter === value ? ' is-active' : ''}`}
+                onClick={() => setFilter(value)}
+              >
+                {label}<span>{count}</span>
+              </button>
+            ))}
+          </div>
+          <span className="helloada-gallery-count">{visible.length} {t('owner.galleryCount')}</span>
         </div>
         {error ? <p className="helloada-gallery-message is-error" role="alert">{error}</p> : null}
         {loading && !media.length ? <p className="helloada-gallery-message">{t('workspace.pageGalleryLoading')}</p> : null}
         {!loading && !media.length && !error ? <p className="helloada-gallery-message">{t('workspace.pageGalleryNoMatch')}</p> : null}
-        {media.length ? (
+        {!loading && media.length && !visible.length ? <p className="helloada-gallery-message">{t('owner.galleryNoKind')}</p> : null}
+        {visible.length ? (
           <div className="helloada-gallery-grid">
-            {media.map((item) => {
+            {visible.map((item) => {
               const source = resolveMediaUrl(item, origin)
               return (
                 <article className="helloada-gallery-card" key={String(item.id)}>
@@ -208,6 +230,12 @@ export function HelloAdaGallery() {
                     {!source ? <span>{t('workspace.pageGalleryUnavailable')}</span>
                       : isVideo(item) ? <video src={source} controls playsInline muted preload="metadata" aria-label={mediaLabel(item)} />
                         : <Image src={source} alt={mediaLabel(item)} width={360} height={250} unoptimized />}
+                    {isVideo(item) ? (
+                      <span className="helloada-gallery-kind">
+                        <svg viewBox="0 0 24 24" width="10" height="10" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" /></svg>
+                        {t('owner.galleryVideo')}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="helloada-gallery-card-meta">
                     <div><strong>{mediaLabel(item)}</strong><small>{item.filename || `#${item.id}`}</small></div>
