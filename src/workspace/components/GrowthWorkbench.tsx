@@ -94,6 +94,12 @@ const TYPE_LABEL: Record<string, string> = {
   O14: 'Offer positioning',
 }
 
+/** A task's assignee is a principal id; show which owner, not the whole path. */
+function assigneeLabel(value: string, owner: string): string {
+  const match = value.match(/^(?:payload|helloada):(?:[^:]+:)?(.+)$/)
+  return match ? `${owner} ${match[1]}` : value
+}
+
 const typeLabel = (type: string) => TYPE_LABEL[type.slice(0, 2)] || type
 const typeTone = (dimension: string) =>
   dimension === 'technical' ? 'technical' : dimension === 'content' ? 'content'
@@ -580,9 +586,19 @@ function Detail({
           <span>
             {task.status === 'awaiting_human'
               ? t('growth.workbench.taskAwaiting')
-              : `${t('growth.workbench.taskAssigned')} ${task.assignedTo}`}
+              : `${t('growth.workbench.taskAssigned')} ${assigneeLabel(task.assignedTo, t('growth.workbench.owner'))}`}
           </span>
           <div className="gw-actions">
+            {task.status === 'todo' ? (
+              <button
+                type="button"
+                className="gw-button gw-button-primary"
+                disabled={busy !== null}
+                onClick={() => void confirm(task, 'in_progress')}
+              >
+                {busy === `${task.id}:in_progress` ? t('growth.workbench.starting') : t('growth.workbench.startWork')}
+              </button>
+            ) : null}
             {task.status === 'awaiting_human' || task.status === 'in_progress' ? (
               <button
                 type="button"
@@ -653,6 +669,11 @@ function Work({
       <h3>{task.title}</h3>
       <p className="gw-summary">{t('growth.workbench.taskFor')} <button type="button" className="gw-link" onClick={() => onOpen(opportunity.id)}>{opportunity.title}</button></p>
       <div className="gw-actions">
+        {task.status === 'todo' ? (
+          <button type="button" className="gw-button gw-button-primary" disabled={busy !== null} onClick={() => void confirm(task, 'in_progress')}>
+            {busy === `${task.id}:in_progress` ? t('growth.workbench.starting') : t('growth.workbench.startWork')}
+          </button>
+        ) : null}
         {task.status === 'awaiting_human' || task.status === 'in_progress' ? (
           <button type="button" className="gw-button gw-button-primary" disabled={busy !== null} onClick={() => void confirm(task, 'delivered')}>
             {busy === `${task.id}:delivered` ? t('growth.workbench.confirming') : t('growth.workbench.confirmDelivery')}
