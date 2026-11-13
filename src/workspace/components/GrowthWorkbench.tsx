@@ -219,6 +219,9 @@ export function GrowthWorkbench() {
       await load()
     } catch (exception) {
       setNotice(`${t('growth.workbench.decisionFailed')}: ${(exception as Error)?.message ?? ''}`)
+      // A refused decision means this page showed a version the connector no
+      // longer holds. Re-read so the reading pane shows what is current.
+      await load()
     } finally {
       setBusy(null)
     }
@@ -244,6 +247,8 @@ export function GrowthWorkbench() {
       await load()
     } catch (exception) {
       setNotice(`${t('growth.workbench.confirmFailed')}: ${(exception as Error)?.message ?? ''}`)
+      // The task and its Opportunity are one read; refresh both on a refusal.
+      await load()
     } finally {
       setBusy(null)
     }
