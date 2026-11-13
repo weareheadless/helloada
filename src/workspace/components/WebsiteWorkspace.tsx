@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation'
 
 import { HelloAdaChatMessage } from './HelloAdaChatMessage'
 import { HelloAdaHistory } from './HelloAdaHistory'
-import { HelloAdaGrowth } from './HelloAdaGrowth'
+import { GrowthWorkbench } from './GrowthWorkbench'
 import { HelloAdaGallery } from './HelloAdaGallery'
 import { HelloAdaMail } from './HelloAdaMail'
 import { EditableRichTextEditor } from './EditableRichTextEditor'
@@ -629,7 +629,7 @@ export function WebsiteWorkspace() {
   const searchParams = useSearchParams()
   const site = useHelloAdaSite()
   if (searchParams.get('view') === 'history') return <HelloAdaHistory />
-  if (searchParams.get('view') === 'growth') return <HelloAdaGrowth />
+  if (searchParams.get('view') === 'growth') return <GrowthWorkbench />
   if (searchParams.get('view') === 'gallery') return <HelloAdaGallery />
   if (searchParams.get('view') === 'messages') return <HelloAdaMail />
   if (searchParams.get('view') === 'calendar' && site.features.bookings) return <HelloAdaMail surface="calendar" />
