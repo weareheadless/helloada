@@ -483,6 +483,16 @@ function Detail({
           : t('growth.workbench.evidenceNone')
   const size = typeof effort.sizeFactor === 'number' ? effort.sizeFactor : null
   const effortLabel = size === null ? '—' : size <= 1 ? 'Small' : size <= 2 ? 'Medium' : 'Large'
+  const decision = (row.recommendationDecision ?? {}) as { readiness?: unknown; confidence?: unknown }
+  const readinessLabel =
+    decision.readiness === 'actionable' ? t('growth.workbench.readinessActionable')
+      : decision.readiness === 'needs_investigation' ? t('growth.workbench.readinessInvestigation')
+        : '—'
+  const confidenceLabel =
+    decision.confidence === 'high' ? `${t('growth.workbench.confidence')} ${t('growth.workbench.confidenceHigh')}`
+      : decision.confidence === 'medium' ? `${t('growth.workbench.confidence')} ${t('growth.workbench.confidenceMedium')}`
+        : decision.confidence === 'low' ? `${t('growth.workbench.confidence')} ${t('growth.workbench.confidenceLow')}`
+          : ''
   const decidable = row.status === 'detected' || row.status === 'parked'
 
   return (
@@ -534,8 +544,8 @@ function Detail({
           </div>
           <div>
             <span>{t('growth.workbench.assessment')}</span>
-            <strong>{row.recommendationVersion ?? row.assessmentVersion ?? '—'}</strong>
-            <small>{typeof worth.measurement === 'string' ? worth.measurement.replace(/_/g, ' ') : ''}</small>
+            <strong>{readinessLabel}</strong>
+            <small>{confidenceLabel}</small>
           </div>
         </div>
       </div>
@@ -686,13 +696,16 @@ function connectionLabel(status: unknown, t: Copy) {
   }
 }
 
+/** A saved page path can be a signed preview route; clip it for reading. */
 function pathLabel(value: string): string {
+  let label = value
   try {
     const url = new URL(value)
-    return url.pathname === '/' ? url.hostname.replace(/^www\./, '') : url.pathname
+    label = url.pathname === '/' ? url.hostname.replace(/^www\./, '') : url.pathname
   } catch {
-    return value
+    label = value
   }
+  return label.length > 64 ? `${label.slice(0, 61)}…` : label
 }
 
 function sum(rows: unknown, field: string): number {
