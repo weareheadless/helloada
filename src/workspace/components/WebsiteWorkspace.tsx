@@ -1133,26 +1133,27 @@ function ReviewWorkspace() {
     }
   }, [designBuild?.draft_id, t])
 
-  const retryPreview = useCallback(async () => {
+  // A failed preview can be a failed revision, not only a failed build: the
+  // site may have moved since this review was prepared, and retrying the same
+  // commit can never succeed. This asks the backend to re-apply the reviewed
+  // change onto the current site when that is the case, then build it once.
+  const rebuildPreview = useCallback(async () => {
     const draft = sourceReview
-    if (!draft?.draftId || !/^[0-9a-f]{40}$/.test(draft.sha || '')) return
+    if (!draft?.draftId) return
     setPreviewStatus('refreshing')
     setError('')
     try {
-      const response = await fetchHelloAda('/api/helloada/source/preview', {
+      const response = await fetchHelloAda('/api/helloada/source/preview/rebuild', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          branch: 'preview',
-          commit: draft.sha,
-          draft_id: draft.draftId,
-          mode: 'compiled_preview',
-        }),
+        body: JSON.stringify({ draft_id: draft.draftId }),
       })
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as { message?: string }
         throw new Error(body.message || t('workspace.previewError'))
       }
+      const rebuilt = (await response.json().catch(() => ({}))) as { rebased?: boolean }
+      if (rebuilt.rebased) setPublishNotice(t('workspace.previewReapplied'))
       await loadPreviewPlan()
     } catch (cause) {
       setPreviewStatus('error')
@@ -2425,8 +2426,13 @@ function ReviewWorkspace() {
                      ? t('workspace.previewError')
                      : `${t('workspace.previewRefreshing')}${previewStepLabel(previewStep) ? ` · ${previewStepLabel(previewStep)}` : ''}`}</span>
                    {previewStatus === 'error' && sourceReview?.draftId ? (
-                     <button type="button" className="helloada-preview-retry" onClick={() => void retryPreview()}>
-                       {t('owner.retry')}
+                     <button
+                       type="button"
+                       className="helloada-preview-retry"
+                       title={t('workspace.previewRebuildHint')}
+                       onClick={() => void rebuildPreview()}
+                     >
+                       {t('workspace.previewRebuild')}
                      </button>
                    ) : null}
                  </div>
@@ -2450,8 +2456,13 @@ function ReviewWorkspace() {
                        {previewStatus === 'refreshing' ? <span className="helloada-preview-status-spinner" aria-hidden="true" /> : null}
                        <span>{previewStatusMessage}</span>
                        {previewStatus === 'error' && sourceReview?.draftId ? (
-                         <button type="button" className="helloada-preview-retry" onClick={() => void retryPreview()}>
-                           {t('owner.retry')}
+                         <button
+                           type="button"
+                           className="helloada-preview-retry"
+                           title={t('workspace.previewRebuildHint')}
+                           onClick={() => void rebuildPreview()}
+                         >
+                           {t('workspace.previewRebuild')}
                          </button>
                        ) : null}
                      </div>
