@@ -46,14 +46,17 @@ const elapsedLabel = (from: string, to: number) => {
 export function PublicationProgress({
   refreshKey,
   onAskAda,
+  onRetry,
 }: {
   refreshKey: number
-  onAskAda?: () => void
+  onAskAda?: (release: Release) => void
+  onRetry?: (release: Release) => Promise<void> | void
 }) {
   const { t } = useHelloAdaTranslations()
   const [snapshot, setSnapshot] = useState<PublicationSnapshot>()
   const [error, setError] = useState('')
   const [dismissed, setDismissed] = useState('')
+  const [retrying, setRetrying] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const requestRef = useRef(0)
 
@@ -159,7 +162,26 @@ export function PublicationProgress({
               <WorkspaceIcon name="external" size={13} />
             </a>
           ) : release.failed ? (
-            onAskAda ? <button type="button" onClick={onAskAda}>{t('release.askAda')}</button> : null
+            <>
+              {onRetry && release.draftId ? (
+                <button
+                  type="button"
+                  disabled={retrying}
+                  onClick={async () => {
+                    if (!onRetry) return
+                    setRetrying(true)
+                    try {
+                      await onRetry(release)
+                    } finally {
+                      setRetrying(false)
+                    }
+                  }}
+                >
+                  {retrying ? t('release.retrying') : t('release.retry')}
+                </button>
+              ) : null}
+              {onAskAda ? <button type="button" onClick={() => onAskAda(release)}>{t('release.askAda')}</button> : null}
+            </>
           ) : (
             <>
               <em>{percent}%</em>

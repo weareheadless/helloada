@@ -1804,6 +1804,69 @@ function ReviewWorkspace() {
     }
   }
 
+  const retryRelease = useCallback(async (release: { draftId?: number | null }) => {
+    if (!release.draftId) return
+    setError('')
+    try {
+      const response = await fetchHelloAda('/api/helloada/publication/retry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draft_id: release.draftId }),
+      })
+      const body = (await response.json().catch(() => ({}))) as { message?: string; error?: string }
+      if (!response.ok) throw new Error(responseMessage(body, t('release.retryFailed')))
+      setPublishNotice(t('release.retryStarted'))
+      setReleaseRefresh((current) => current + 1)
+      await loadWorkspace(true)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t('release.retryFailed'))
+    }
+  }, [loadWorkspace, t])
+
+  const askAdaAboutRelease = useCallback((release: { id?: string; stage?: string; phase?: string; error?: string; commit?: string }) => {
+    if (chatWorking) {
+      setError(t('release.askAdaBusy'))
+      return
+    }
+    setMobilePane('ada')
+    const detail = [
+      release.id ? `${t('release.releaseId')}: ${release.id}` : '',
+      release.stage || release.phase ? `${t('release.stage')}: ${release.stage || release.phase}` : '',
+      release.commit ? `${t('release.commit')}: ${release.commit}` : '',
+      release.error ? `${t('release.error')}: ${release.error}` : '',
+    ].filter(Boolean)
+    void sendMessage([t('release.askAdaIntro'), ...detail].join('\n'))
+  }, [chatWorking, sendMessage, t])
+
+  const askAdaAboutPreview = useCallback(async () => {
+    if (chatWorking) {
+      setError(t('release.askAdaBusy'))
+      return
+    }
+    let detail = ''
+    try {
+      const response = await fetchHelloAda('/api/helloada/source/preview?branch=preview', { cache: 'no-store' })
+      const body = (await response.json().catch(() => ({}))) as {
+        status?: string
+        build_step?: string
+        error?: string
+        diagnostic_id?: string
+        commit?: string
+      }
+      detail = [
+        body.status ? `${t('release.stage')}: ${body.status}` : '',
+        body.build_step ? `${t('workspace.previewStep')}: ${body.build_step}` : '',
+        body.commit ? `${t('release.commit')}: ${body.commit}` : '',
+        body.diagnostic_id ? `${t('workspace.previewDiagnostic')}: ${body.diagnostic_id}` : '',
+        body.error ? `${t('release.error')}: ${body.error}` : '',
+      ].filter(Boolean).join('\n')
+    } catch {
+      detail = ''
+    }
+    setMobilePane('ada')
+    void sendMessage([t('workspace.previewAskAdaIntro'), detail].filter(Boolean).join('\n\n'))
+  }, [chatWorking, sendMessage, t])
+
   const editorGroups = useMemo(() => {
     const groups = new Map<string, EditablePageEntry[]>()
     for (const entry of editorEntries) {
@@ -2376,10 +2439,8 @@ function ReviewWorkspace() {
 
              <PublicationProgress
                refreshKey={releaseRefresh}
-               onAskAda={() => {
-                 setMobilePane('ada')
-                 window.setTimeout(() => messageInputRef.current?.focus(), 60)
-               }}
+               onAskAda={askAdaAboutRelease}
+               onRetry={retryRelease}
              />
              <CheckpointHistory
                open={historyOpen}
@@ -2433,6 +2494,16 @@ function ReviewWorkspace() {
                        onClick={() => void rebuildPreview()}
                      >
                        {t('workspace.previewRebuild')}
+                     </button>
+                   ) : null}
+                   {previewStatus === 'error' ? (
+                     <button
+                       type="button"
+                       className="helloada-preview-retry"
+                       title={t('workspace.previewAskAdaHint')}
+                       onClick={() => void askAdaAboutPreview()}
+                     >
+                       {t('workspace.previewAskAda')}
                      </button>
                    ) : null}
                  </div>
