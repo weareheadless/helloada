@@ -293,6 +293,8 @@ export function GrowthWorkbench() {
         <div className="gw-top-status">
           {phase === 'failed' ? (
             <span className="gw-chip gw-chip-warn"><i />{t('growth.workbench.loadFailed')}</span>
+          ) : phase === 'loading' ? (
+            <span className="gw-chip gw-chip-warn"><i />{t('growth.workbench.loading')}</span>
           ) : (
             <span className="gw-chip"><i />{envelope.schemaVersion ? `connector v${envelope.schemaVersion}` : t('growth.workbench.updated')}</span>
           )}
@@ -333,7 +335,7 @@ export function GrowthWorkbench() {
           <button type="button" className="gw-button" onClick={() => { setPhase('loading'); void load() }}>{t('growth.workbench.retry')}</button>
         </section>
       ) : phase === 'loading' && rows.length === 0 ? (
-        <section className="gw-fail"><p>{t('growth.workbench.deciding')}</p></section>
+        <section className="gw-fail"><p>{t('growth.workbench.loading')}</p></section>
       ) : mode === 'performance' ? (
         <Performance
           analytics={analytics}
@@ -717,7 +719,7 @@ function Performance({
   number: (value: unknown) => string | null
 }) {
   if (phase === 'loading' || phase === 'idle') {
-    return <section className="gw-fail"><p>{t('growth.workbench.deciding')}</p></section>
+    return <section className="gw-fail"><p>{t('growth.workbench.loading')}</p></section>
   }
   if (phase === 'failed') {
     return (
