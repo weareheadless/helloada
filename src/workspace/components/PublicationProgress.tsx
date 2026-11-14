@@ -27,6 +27,7 @@ type Release = {
 
 type PublicationSnapshot = {
   release: Release | null
+  siteUrl?: string
   live: { sha: string; releaseId: string; fingerprint: string; activated: boolean }
   steps: Array<{ phase: string; label: string }>
   latestPublish: { summary: string; ts: string; commit: string; versionType: string } | null
@@ -81,6 +82,12 @@ export function PublicationProgress({
   }, [load, refreshKey])
 
   const release = snapshot?.release
+  // The workspace runs on the platform host, so "/" is the platform, not the
+  // owner's site. Only the tenant's registered address is a live link.
+  const siteUrl = (() => {
+    const value = String(snapshot?.siteUrl || '').trim()
+    return /^https?:\/\//.test(value) ? value : ''
+  })()
   const running = Boolean(release && !release.complete)
 
   useEffect(() => {
@@ -156,12 +163,12 @@ export function PublicationProgress({
           <span>{hint}</span>
         </div>
         <div className="helloada-release-meta">
-          {live ? (
-            <a className="helloada-release-open" href="/" target="_blank" rel="noreferrer">
+          {live && siteUrl ? (
+            <a className="helloada-release-open" href={siteUrl} target="_blank" rel="noreferrer">
               {t('release.openLive')}
               <WorkspaceIcon name="external" size={13} />
             </a>
-          ) : release.failed ? (
+          ) : live ? null : release.failed ? (
             <>
               {onRetry && release.draftId ? (
                 <button
