@@ -19,6 +19,18 @@ export default async function SiteMailPage({
   const mailboxPath = `/${(path || []).join('/')}`.replace(/\/$/, '') || '/'
   // The mailbox landing is the inbox; there is no upstream root page.
   if (mailboxPath === '/') redirect(sitePath(slug, '/mail/inbox'))
+  // The generated mailbox ships the mail routes only. Its account menu still
+  // links to Settings, Calendar and Drive, which live outside that route group;
+  // send them to the real surface instead of rendering an empty window.
+  if (mailboxPath === '/settings' || mailboxPath.startsWith('/settings/')) {
+    redirect(sitePath(slug, '/settings'))
+  }
+  if (
+    mailboxPath === '/calendar' || mailboxPath.startsWith('/calendar/')
+    || mailboxPath === '/drive' || mailboxPath.startsWith('/drive/')
+  ) {
+    redirect(sitePath(slug, '/'))
+  }
   const language = (await cookies()).get('payload-lng')?.value || 'en'
 
   return (

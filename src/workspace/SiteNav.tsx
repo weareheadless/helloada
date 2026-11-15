@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 import { sitePath } from '@/lib/site-url'
 
-export type SiteNavView = '' | 'growth' | 'gallery' | 'history' | 'messages' | 'calendar'
+export type SiteNavView = '' | 'growth' | 'gallery' | 'history' | 'messages' | 'calendar' | 'settings'
 
 /**
  * The single control-plane navigation for a website. The workspace and the
@@ -31,6 +31,7 @@ export function SiteNav({
     { view: 'history', label: 'History', href: `${base}?view=history` },
     { view: 'messages', label: 'Messages', href: sitePath(slug, '/mail') },
     ...(bookings ? [{ view: 'calendar' as const, label: 'Calendar', href: sitePath(slug, '/mail/calendar') }] : []),
+    { view: 'settings', label: 'Settings', href: sitePath(slug, '/settings') },
   ]
 
   return (

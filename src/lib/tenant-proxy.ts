@@ -9,6 +9,42 @@ const forwardable = ['content-type', 'accept', 'accept-language']
  * owner owns it. Compiled previews do not travel through here: they run on
  * their own origin.
  */
+/**
+ * The owner-authenticated pass-through to a tenant's control-plane settings.
+ *
+ * Unlike the workspace proxy this never reaches the tenant Worker; it reads and
+ * writes the tenant record that owns the domain, the mailbox policy and the
+ * identity every other surface resolves from.
+ */
+export async function proxyTenantControl(
+  tenantId: string,
+  ownerSubject: string,
+  path: string,
+  request: Request,
+): Promise<Response> {
+  const incoming = new URL(request.url)
+  const method = request.method.toUpperCase()
+  const forwardedHeaders: Record<string, string> = {
+    'x-helloada-owner-subject': ownerSubject,
+  }
+  for (const name of forwardable) {
+    const value = request.headers.get(name)
+    if (value) forwardedHeaders[name] = value
+  }
+  const body = method === 'GET' || method === 'HEAD' ? undefined : await request.arrayBuffer()
+  const suffix = String(path || '').replace(/^\/+/, '')
+  const response = await siteAgentRequest(tenantId, `/${suffix}${incoming.search}`, {
+    method,
+    headers: forwardedHeaders,
+    body,
+    signal: AbortSignal.timeout(120_000),
+  })
+  const out = new Headers({ 'cache-control': 'no-store' })
+  const contentType = response.headers.get('content-type')
+  if (contentType) out.set('content-type', contentType)
+  return new Response(response.body, { status: response.status, headers: out })
+}
+
 export async function proxyTenantWorkspace(
   tenantId: string,
   ownerSubject: string,

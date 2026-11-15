@@ -5,15 +5,14 @@ import { currentUser } from '@/lib/auth'
 import { tenantAdminUrl } from '@/lib/tenant-admin'
 import { issueOwnerHandoff } from '@/lib/owner-handoff'
 import { safeNextPath } from '@/lib/safe-next'
-import { ownedWebsite, websiteBootstrapStatus } from '@/lib/website'
+import { ownedWebsite, siteAgentRequest, websiteBootstrapStatus } from '@/lib/website'
 
 export const dynamic = 'force-dynamic'
 
 const noStore = { 'cache-control': 'no-store, max-age=0', 'referrer-policy': 'no-referrer' }
-const HELLOADA_ORIGIN = 'https://helloada.app'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (request.headers.get('origin') !== HELLOADA_ORIGIN) {
+  if (request.headers.get('origin') !== new URL(request.url).origin) {
     return NextResponse.json({ error: 'origin_invalid' }, { status: 403, headers: noStore })
   }
   const auth = await currentUser(await headers())
@@ -44,17 +43,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'workspace_not_ready' }, { status: 409, headers: noStore })
   }
 
-  const receipts = remote.resource_receipts && typeof remote.resource_receipts === 'object'
-    ? remote.resource_receipts as Record<string, unknown>
-    : {}
-  const worker = receipts.creating_worker && typeof receipts.creating_worker === 'object'
-    ? String((receipts.creating_worker as { worker_url?: unknown }).worker_url || '')
-    : ''
-  const workerOrigin = worker.replace(/\/$/, '')
-  const registeredAdmin = tenantAdminUrl(website.adminUrl)
-  const verifiedAdmin = tenantAdminUrl(workerOrigin ? workerOrigin + '/admin' : '')
-  if (!verifiedAdmin || !registeredAdmin || verifiedAdmin !== registeredAdmin) {
-    return NextResponse.json({ error: 'verified_admin_origin_missing_or_mismatched' }, { status: 409, headers: noStore })
+  // The tenant record owns the address the admin is served from. A receipt or a
+  // document copy written at bootstrap time goes stale as soon as the Worker is
+  // renamed or a domain is attached, so the origin is resolved now instead of
+  // comparing two old copies for equality.
+  const identityResponse = await siteAgentRequest(tenantId, '/identity', {
+    signal: AbortSignal.timeout(30_000),
+  })
+  const identity = identityResponse.ok
+    ? await identityResponse.json().catch(() => null) as { adminUrl?: string } | null
+    : null
+  const verifiedAdmin = tenantAdminUrl(identity?.adminUrl)
+  if (!verifiedAdmin) {
+    return NextResponse.json({ error: 'verified_admin_origin_missing' }, { status: 409, headers: noStore })
   }
 
   try {
