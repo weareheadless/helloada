@@ -104,11 +104,30 @@ test('retry reads the saved repository; verified GET projects live without intak
   assert.equal(state.website.phase, 'designing')
   state.remote = { ...state.remote, tenant_id: state.website.tenantId, status: 'done', step: 'ready', workspace_ready: true, website_live: true,
     provisioning_source: { kind: 'github_static', repository: 'weareheadless/astrid-rincon-website', branch: 'main' },
-    resource_receipts: { creating_worker: { worker_url: 'https://helloada-astrid.weareheadless.workers.dev' } } }
+    // The receipt records the Worker that bootstrap created; the record owns
+    // the address the site answers on now.
+    resource_receipts: { creating_worker: { worker_url: 'https://helloada-retired.weareheadless.workers.dev' } },
+    identity: { workerUrl: 'https://helloada-astrid.weareheadless.workers.dev/', adminUrl: 'https://astridrincon.com/admin' } }
   const response = await route.GET(new Request('https://helloada.app/status'), params)
   assert.equal(response.status, 200)
-  assert.equal((await response.json()).website.phase, 'live')
+  const body = await response.json()
+  assert.equal(body.website.phase, 'live')
+  assert.equal(body.website.adminUrl, 'https://astridrincon.com/admin')
+  assert.equal(state.website.adminUrl, 'https://astridrincon.com/admin')
+  assert.equal(state.website.workerUrl, 'https://helloada-astrid.weareheadless.workers.dev/')
   assert.equal(state.website.phase, 'live')
+})
+
+test('a ready workspace without a record address is not projected as live', async () => {
+  const route = await moduleFor('src/app/api/helloada/websites/[id]/bootstrap/route.ts')
+  const state = fixture({ receipts: { github_repository: 'weareheadless/astrid-rincon-website' } })
+  state.remote = { ...state.remote, tenant_id: state.website.tenantId, status: 'done', step: 'ready', workspace_ready: true, website_live: true,
+    provisioning_source: { kind: 'github_static', repository: 'weareheadless/astrid-rincon-website', branch: 'main' },
+    resource_receipts: { creating_worker: { worker_url: 'https://helloada-astrid.weareheadless.workers.dev' } } }
+  const response = await route.GET(new Request('https://helloada.app/status'), { params: Promise.resolve({ id: '1' }) })
+  assert.equal(response.status, 502)
+  assert.equal((await response.json()).error, 'verified_admin_origin_missing')
+  assert.equal(state.website.adminUrl, undefined)
 })
 
 test('an old backend cannot silently turn a GitHub request into intake', async () => {
