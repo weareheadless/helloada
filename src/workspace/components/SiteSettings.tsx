@@ -324,27 +324,29 @@ export function SiteSettings({
               in the platform Cloudflare account and both the apex and www will point at it.
             </p>
           )}
-          <form onSubmit={(event) => void attachDomain(event)} className="hs-inline-form">
-            <label className="hs-field">
-              <span>Domain</span>
-              <input
-                value={domain}
-                onChange={(event) => setDomain(event.target.value)}
-                placeholder="example.com"
-                autoComplete="off"
-                spellCheck={false}
-              />
-            </label>
-            <label className="hs-field hs-field-narrow">
-              <span>Canonical</span>
-              <select value={canonical} onChange={(event) => setCanonical(event.target.value === 'apex' ? 'apex' : 'www')}>
-                <option value="www">www</option>
-                <option value="apex">apex</option>
-              </select>
-            </label>
-            <button type="submit" className="hs-button" disabled={busy === 'domain' || !snapshot.capabilities.attachDomain}>
-              {busy === 'domain' ? 'Attaching…' : domainConfigured ? 'Re-attach' : 'Attach domain'}
-            </button>
+          <form onSubmit={(event) => void attachDomain(event)}>
+            <div className="hs-inline-form">
+              <label className="hs-field">
+                <span>Domain to attach</span>
+                <input
+                  value={domain}
+                  onChange={(event) => setDomain(event.target.value)}
+                  placeholder="example.com"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </label>
+              <label className="hs-field hs-field-narrow">
+                <span>Canonical</span>
+                <select value={canonical} onChange={(event) => setCanonical(event.target.value === 'apex' ? 'apex' : 'www')}>
+                  <option value="www">www</option>
+                  <option value="apex">apex</option>
+                </select>
+              </label>
+              <button type="submit" className="hs-button" disabled={busy === 'domain' || !snapshot.capabilities.attachDomain}>
+                {busy === 'domain' ? 'Attaching…' : domainConfigured ? 'Re-attach' : 'Attach domain'}
+              </button>
+            </div>
           </form>
           {conflict && (
             <div className="hs-conflict">

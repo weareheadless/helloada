@@ -54,7 +54,7 @@
 
 .hs-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
   gap: clamp(14px, 1.6vw, 20px);
   align-items: start;
 }
@@ -163,6 +163,10 @@
   flex: 0 0 104px;
 }
 
+.hs-inline-form > .hs-button {
+  align-self: flex-end;
+}
+
 .hs-checks {
   display: flex;
   flex-direction: column;
@@ -219,12 +223,14 @@
 }
 
 .hs-facts dd a {
-  color: var(--helloada-cyan);
-  text-decoration: none;
+  color: var(--helloada-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--helloada-line);
+  text-underline-offset: 2px;
 }
 
 .hs-facts dd a:hover {
-  text-decoration: underline;
+  text-decoration-color: currentColor;
 }
 
 .hs-facts-grid {

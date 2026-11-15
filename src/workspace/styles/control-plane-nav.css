@@ -1,8 +1,11 @@
 .helloada-control-nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 18px;
-  height: 58px;
+  min-height: 58px;
+  padding-top: 8px;
+  padding-bottom: 8px;
   padding: 0 clamp(14px, 2vw, 30px);
   border-bottom: 1px solid var(--helloada-soft-line);
   background: var(--helloada-top);
@@ -62,6 +65,7 @@
 
 .helloada-control-links {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
   margin-left: auto;
@@ -74,11 +78,23 @@
 
 @media (max-width: 720px) {
   .helloada-control-nav {
-    gap: 10px;
-    overflow-x: auto;
+    gap: 8px 10px;
+    padding-top: 10px;
+    padding-bottom: 10px;
   }
 
   .helloada-control-site {
     display: none;
+  }
+
+  .helloada-control-links {
+    width: 100%;
+    gap: 8px 14px;
+    margin-left: 0;
+  }
+
+  .helloada-control-links .is-separated {
+    padding-left: 0;
+    border-left: 0;
   }
 }
