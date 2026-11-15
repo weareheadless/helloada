@@ -12,7 +12,6 @@ import { helloAdaPath } from '../config/site'
 import { mediaOrigin, mediaUrl, resolveMediaUrl } from '../lib/media'
 import { filterMedia, mediaCounts, mediaKind, type GalleryFilter } from '../lib/gallery-filter'
 import { mediaUploadKind, uploadMediaFile } from '../api/upload-media'
-import { HelloAdaMark } from './HelloAdaLogo'
 import { WorkspaceIcon } from './WorkspaceIcon'
 import { responseMessage } from '../api/response-message'
 
@@ -174,13 +173,9 @@ export function HelloAdaGallery() {
     <main className="helloada-gallery">
       <header className="helloada-gallery-header">
         <div className="helloada-gallery-heading">
-          <HelloAdaMark size={42} />
-          <div>
-            <p className="helloada-eyebrow">{site.siteName}</p>
-            <h1>{t('owner.galleryTitle')}</h1>
-            <p>{t('owner.galleryIntro')}</p>
-            <p className="helloada-gallery-limit">{t('owner.galleryLimit')}</p>
-          </div>
+          <h1>{t('owner.galleryTitle')}</h1>
+          <p>{t('owner.galleryIntro')}</p>
+          <p className="helloada-gallery-limit">{t('owner.galleryLimit')}</p>
         </div>
         <div className="helloada-gallery-actions">
           <Link className="helloada-gallery-secondary" href="/admin/collections/media">{t('owner.galleryOpenPayload')}<WorkspaceIcon name="external" size={15} /></Link>

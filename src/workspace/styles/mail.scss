@@ -33,32 +33,23 @@
 .helloada-mail-header,
 .helloada-mail-reader-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 22px 22px 14px;
+  padding: 14px 20px 11px;
   border-bottom: 1px solid var(--helloada-soft-line);
 }
 
 .helloada-mail-header h1,
 .helloada-mail-reader-header h2 {
-  margin: 2px 0 0;
-  font-size: 1.35rem;
-  font-weight: 600;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .helloada-mail-reader-header h2 {
   font-size: 1.15rem;
-}
-
-.helloada-mail-eyebrow {
-  margin: 0;
-  color: var(--helloada-dim);
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
 .helloada-mail-address {

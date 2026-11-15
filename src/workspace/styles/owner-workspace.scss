@@ -281,12 +281,11 @@
   .helloada-chat-gallery > p { margin: 0; color: var(--helloada-muted); font-size: 10px; }
 
   .helloada-gallery { min-height: calc(100dvh - 90px); max-width: 1640px; margin: 0 auto; padding: 18px 24px 40px; color: var(--helloada-ink); }
-  .helloada-gallery-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
-  .helloada-gallery-heading { display: flex; align-items: flex-start; gap: 14px; min-width: 0; }
-  .helloada-gallery-heading > div { min-width: 0; }
-  .helloada-gallery-heading h1 { margin: 4px 0 7px; font-size: clamp(22px, 3vw, 34px); font-weight: 500; letter-spacing: -.05em; }
+  .helloada-gallery-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--helloada-soft-line); }
+  .helloada-gallery-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; min-width: 0; }
+  .helloada-gallery-heading h1 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -.02em; }
   .helloada-gallery-heading p:not(.helloada-eyebrow) { max-width: 520px; margin: 0; color: var(--helloada-muted); font-size: 12px; line-height: 1.6; }
-  .helloada-gallery-heading p.helloada-gallery-limit { margin-top: 6px; color: var(--helloada-dim); font-size: 10px; }
+  .helloada-gallery-heading p.helloada-gallery-limit { color: var(--helloada-dim); font-size: 11px; }
   .helloada-gallery-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
   .helloada-gallery-actions a, .helloada-gallery-actions button { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px; border-radius: 10px; font-size: 11px; text-decoration: none; cursor: pointer; }
   .helloada-gallery-secondary { border: 1px solid var(--helloada-soft-line); color: var(--helloada-muted); background: transparent; }
@@ -399,9 +398,8 @@
     .helloada-publish-dialog { padding: 25px; }
     .helloada-publish-dialog > div { flex-wrap: wrap; }
     .helloada-gallery { padding: 14px 10px 30px; }
-    .helloada-gallery-heading { gap: 10px; }
-    .helloada-gallery-heading > .helloada-mark { width: 34px; height: 34px; }
-    .helloada-gallery-heading h1 { font-size: 25px; }
+    .helloada-gallery-heading { gap: 6px 10px; }
+    .helloada-gallery-heading h1 { font-size: 15px; }
     .helloada-gallery-heading p:last-child { font-size: 11px; }
     .helloada-gallery-shell { padding: 9px; border-radius: 17px; }
     .helloada-gallery-toolbar { align-items: stretch; flex-direction: column; }

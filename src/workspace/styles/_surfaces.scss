@@ -1,20 +1,22 @@
 /* HelloAda product hierarchy: neutral work surfaces, near-black chrome,
-   exact brand orange for navigation/actions, darker orange for readable text. */
+   exact brand orange for navigation/actions, darker orange for readable text.
+   The brand primitives live once in src/styles/brand.css; these names are the
+   workspace's mapping of the same tokens. */
 @mixin paper {
   color-scheme: light;
-  --theme-bg: #f1f3f6;
-  --theme-text: #161a23;
-  --theme-elevation-0: #f1f3f6;
-  --theme-elevation-50: #f4f6f9;
-  --theme-elevation-100: #ffffff;
+  --theme-bg: var(--brand-surface);
+  --theme-text: var(--brand-ink);
+  --theme-elevation-0: var(--brand-surface);
+  --theme-elevation-50: #f9fafb;
+  --theme-elevation-100: var(--brand-card);
   --theme-elevation-150: #f8f9fb;
-  --theme-elevation-200: #ffffff;
+  --theme-elevation-200: var(--brand-card);
   --theme-elevation-250: #e5e9f0;
   --theme-elevation-300: #d6dce5;
   --theme-elevation-350: #c6cedb;
   --theme-elevation-400: #aeb9c9;
   --theme-elevation-450: #8c98ad;
-  --theme-elevation-500: #5e6778;
+  --theme-elevation-500: var(--brand-muted);
   --theme-elevation-550: #536071;
   --theme-elevation-600: #475366;
   --theme-elevation-650: #3c475a;
@@ -22,38 +24,38 @@
   --theme-elevation-750: #293345;
   --theme-elevation-800: #242d3e;
   --theme-elevation-850: #1c2534;
-  --theme-elevation-900: #161a23;
+  --theme-elevation-900: var(--brand-ink);
   --theme-elevation-950: #12161e;
   --theme-elevation-1000: #0e1118;
-  --theme-success-500: #206347;
-  --theme-warning-500: #765500;
-  --theme-error-500: #b52a3e;
-  --theme-input-bg: #ffffff;
-  --theme-border-color: rgba(29, 39, 59, .16);
-  --helloada-bg: #f1f3f6;
-  --helloada-top: #ffffff;
-  --helloada-review: #ffffff;
-  --helloada-panel: #ffffff;
-  --helloada-panel-raised: #ffffff;
-  --helloada-panel-soft: #f4f6f9;
-  --helloada-ink: #161a23;
-  --helloada-muted: #4e596c;
-  --helloada-dim: #5e6778;
-  --helloada-line: rgba(29, 39, 59, .2);
-  --helloada-soft-line: rgba(29, 39, 59, .12);
-  --helloada-hover: rgba(29, 39, 59, .065);
-  --helloada-inset: rgba(29, 39, 59, .035);
-  --helloada-cyan: #b72f23;
-  --helloada-cyan-soft: rgba(255, 107, 94, .10);
-  --helloada-accent: #ff6b5e;
-  --helloada-accent-ink: #161a23;
-  --helloada-violet: #765500;
-  --helloada-violet-soft: rgba(255, 200, 87, .12);
-  --helloada-positive: #206347;
-  --helloada-negative: #b52a3e;
+  --theme-success-500: var(--brand-positive);
+  --theme-warning-500: var(--brand-amber-ink);
+  --theme-error-500: var(--brand-negative);
+  --theme-input-bg: var(--brand-card);
+  --theme-border-color: var(--brand-line-strong);
+  --helloada-bg: var(--brand-surface);
+  --helloada-top: var(--brand-card);
+  --helloada-review: var(--brand-card);
+  --helloada-panel: var(--brand-card);
+  --helloada-panel-raised: var(--brand-card);
+  --helloada-panel-soft: #f9fafb;
+  --helloada-ink: var(--brand-ink);
+  --helloada-muted: var(--brand-muted);
+  --helloada-dim: var(--brand-dim);
+  --helloada-line: var(--brand-line-strong);
+  --helloada-soft-line: var(--brand-line);
+  --helloada-hover: var(--brand-hover);
+  --helloada-inset: rgba(22, 26, 35, 0.035);
+  --helloada-cyan: var(--brand-coral-ink);
+  --helloada-cyan-soft: var(--brand-coral-soft);
+  --helloada-accent: var(--brand-coral);
+  --helloada-accent-ink: var(--brand-ink);
+  --helloada-violet: var(--brand-amber-ink);
+  --helloada-violet-soft: var(--brand-amber-soft);
+  --helloada-positive: var(--brand-positive);
+  --helloada-negative: var(--brand-negative);
   --helloada-warm: #fff4df;
-  --helloada-action-ink: #ffffff;
-  --helloada-code: #b72f23;
+  --helloada-action-ink: var(--brand-ink);
+  --helloada-code: var(--brand-coral-ink);
 }
 
 @mixin chrome {

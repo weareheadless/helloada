@@ -406,7 +406,7 @@ export function GrowthWorkbench() {
     <div className="helloada-growth gw">
       <header className="gw-top">
         <div>
-          <div className="gw-eyebrow">{t('growth.workbench.title')} · CrawlSEO</div>
+          <div className="gw-eyebrow">CrawlSEO</div>
           <h1>{t('growth.workbench.title')}</h1>
           <p>{t('growth.workbench.subtitle')}</p>
         </div>

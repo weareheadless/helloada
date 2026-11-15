@@ -1388,10 +1388,10 @@
     max-width: 1460px;
     padding-bottom: 40px;
   }
-  .gw-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 6px 0 14px; }
-  .gw-eyebrow { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--helloada-dim); font-weight: 600; }
-  .gw-top h1 { margin: 2px 0 0; font-size: 22px; letter-spacing: -.02em; line-height: 1.2; }
-  .gw-top p { margin: 3px 0 0; color: var(--helloada-dim); font-size: 13px; }
+  .gw-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 0 12px; border-bottom: 1px solid var(--helloada-soft-line); }
+  .gw-eyebrow { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--helloada-dim); font-weight: 700; }
+  .gw-top h1 { margin: 3px 0 0; font-size: 17px; font-weight: 700; letter-spacing: -.025em; line-height: 1.2; }
+  .gw-top p { margin: 3px 0 0; color: var(--helloada-dim); font-size: 12px; }
   .gw-top-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   .gw-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--gw-line); background: var(--helloada-panel-soft); border-radius: 999px; padding: 3px 9px; font-size: 11px; font-weight: 600; color: var(--helloada-muted); }
   .gw-chip i { width: 6px; height: 6px; border-radius: 50%; background: var(--helloada-positive); }
@@ -1532,7 +1532,7 @@
   /* Analytics tab */
   .gw-analytics { display: flex; flex-direction: column; gap: 12px; }
   .gw-an-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 2px 2px 4px; }
-  .gw-an-head h2 { margin: 2px 0 0; font-family: var(--helloada-serif, Georgia, serif); font-size: 26px; font-weight: 500; letter-spacing: -.02em; }
+  .gw-an-head h2 { margin: 2px 0 0; font-family: var(--theme-font-family); font-size: 17px; font-weight: 700; letter-spacing: -.02em; }
   .gw-an-sub { margin: 3px 0 0; max-width: 62ch; color: var(--helloada-dim); font-size: 12px; line-height: 1.55; }
   .gw-an-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .gw-range { display: inline-flex; border: 1px solid var(--gw-strong); border-radius: 9px; overflow: hidden; background: var(--helloada-panel); }

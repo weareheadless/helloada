@@ -1,12 +1,14 @@
 import Link from 'next/link'
 
 import { sitePath } from '@/lib/site-url'
+import { HelloAdaMark } from '@/workspace/components/HelloAdaLogo'
 
 export type SiteNavView = '' | 'growth' | 'gallery' | 'history' | 'messages' | 'calendar' | 'settings'
 
 /**
  * The single control-plane navigation for a website. The workspace and the
- * mailbox both render it, so the owner is never handed a second shell.
+ * mailbox both render it, so the owner is never handed a second shell — and it
+ * carries the same HelloAda lockup as the marketing site and the portfolio.
  */
 export function SiteNav({
   slug,
@@ -36,9 +38,9 @@ export function SiteNav({
 
   return (
     <nav className="helloada-control-nav" aria-label="Website workspace">
-      <Link className="helloada-control-brand" href="/portfolio">
-        <span className="helloada-control-brand-mark">A</span>
-        HelloAda
+      <Link className="helloada-control-brand wordmark" href="/portfolio" aria-label="HelloAda portfolio">
+        <HelloAdaMark size={26} />
+        <span>HelloAda</span>
       </Link>
       <span className="helloada-control-site">{siteName}</span>
       <div className="helloada-control-links">

@@ -1,3 +1,4 @@
+import '@/styles/brand.css'
 import './(frontend)/styles.css'
 
 export const metadata = {

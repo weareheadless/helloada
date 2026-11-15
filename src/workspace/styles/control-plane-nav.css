@@ -1,13 +1,13 @@
+/* The control-plane header: same lockup, hairline and type scale as the
+   marketing topbar, so a workspace never feels like a different product. */
 .helloada-control-nav {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 18px;
+  gap: 8px 14px;
   min-height: 58px;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding: 0 clamp(14px, 2vw, 30px);
-  border-bottom: 1px solid var(--helloada-soft-line);
+  padding: 8px clamp(14px, 2vw, 28px);
+  border-bottom: 1px solid var(--brand-line, rgba(22, 26, 35, 0.13));
   background: var(--helloada-top);
   color: var(--helloada-ink);
   font-family: var(--theme-font-family);
@@ -16,13 +16,13 @@
 .helloada-control-nav a {
   color: var(--helloada-muted);
   font-size: 13px;
+  font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
+  transition: color 0.2s var(--helloada-ease, ease);
 }
 
-.helloada-control-nav a:hover {
-  color: var(--helloada-ink);
-}
+.helloada-control-nav a:hover { color: var(--helloada-ink); }
 
 .helloada-control-nav a[aria-current='page'] {
   color: var(--helloada-ink);
@@ -39,25 +39,21 @@
   color: var(--helloada-ink) !important;
 }
 
-.helloada-control-brand-mark {
-  display: grid;
-  place-items: center;
+.helloada-control-brand .helloada-mark {
   width: 26px;
   height: 26px;
-  border-radius: 50%;
-  background: var(--helloada-ink);
-  color: #fff4df;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 16px;
-  font-style: italic;
+  border-radius: 7px;
+  box-shadow: 0 0 0 1px var(--helloada-soft-line);
 }
 
 .helloada-control-site {
   min-width: 0;
   overflow: hidden;
+  padding-left: 13px;
+  border-left: 1px solid var(--helloada-soft-line);
   color: var(--helloada-dim);
-  font-size: 12px;
-  letter-spacing: 0.08em;
+  font: 600 11px/1 var(--theme-font-family);
+  letter-spacing: 0.06em;
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
@@ -67,34 +63,47 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: 2px;
   margin-left: auto;
 }
 
-.helloada-control-links .is-separated {
-  padding-left: 16px;
-  border-left: 1px solid var(--helloada-soft-line);
+.helloada-control-links a {
+  padding: 6px 10px;
+  border-radius: 999px;
 }
 
-@media (max-width: 720px) {
-  .helloada-control-nav {
-    gap: 8px 10px;
-    padding-top: 10px;
-    padding-bottom: 10px;
-  }
+.helloada-control-links a:hover { background: var(--helloada-hover); }
 
-  .helloada-control-site {
-    display: none;
-  }
+.helloada-control-links a[aria-current='page'] {
+  background: var(--helloada-cyan-soft);
+  color: var(--helloada-cyan);
+}
+
+.helloada-control-links .is-separated {
+  margin-left: 8px;
+  padding-left: 14px;
+  border-left: 1px solid var(--helloada-soft-line);
+  border-radius: 0;
+  color: var(--helloada-dim);
+}
+
+.helloada-control-links .is-separated:hover { background: transparent; color: var(--helloada-ink); }
+
+@media (max-width: 720px) {
+  .helloada-control-nav { padding-top: 10px; padding-bottom: 10px; }
+  .helloada-control-site { display: none; }
 
   .helloada-control-links {
     width: 100%;
-    gap: 8px 14px;
+    gap: 4px 6px;
     margin-left: 0;
   }
 
+  .helloada-control-links a { padding: 6px 9px; font-size: 12px; }
+
   .helloada-control-links .is-separated {
-    padding-left: 0;
+    margin-left: 0;
+    padding-left: 9px;
     border-left: 0;
   }
 }

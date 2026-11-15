@@ -1,0 +1,114 @@
+/*
+ * One HelloAda. Marketing pages, the portfolio tool and a site workspace share
+ * these primitives: paper white work surfaces, near-black ink, coral as the
+ * single action colour and amber only as a signal. Small text never uses the
+ * coral fill or the amber fill; those have their own readable ink.
+ */
+:root {
+  --brand-paper: #ffffff;
+  --brand-surface: #f6f7f9;
+  --brand-surface-2: #eef0f4;
+  --brand-card: #ffffff;
+
+  --brand-ink: #161a23;
+  --brand-ink-soft: #333d4f;
+  --brand-muted: #4e596c;
+  --brand-dim: #5e6778;
+  --brand-faint: #7a8699;
+
+  --brand-line: rgba(22, 26, 35, 0.13);
+  --brand-line-strong: rgba(22, 26, 35, 0.26);
+  --brand-hover: rgba(22, 26, 35, 0.05);
+
+  --brand-coral: #ff6b5e;
+  --brand-coral-ink: #b72f23;
+  --brand-coral-soft: rgba(255, 107, 94, 0.1);
+  --brand-coral-line: rgba(255, 107, 94, 0.34);
+  --brand-amber: #ffc857;
+  --brand-amber-ink: #765500;
+  --brand-amber-soft: rgba(255, 200, 87, 0.16);
+
+  --brand-positive: #206347;
+  --brand-negative: #b52a3e;
+
+  /* Chrome: the conversation and build surfaces stay near-black so the work
+     itself reads calm against the paper. */
+  --brand-chrome: #101621;
+  --brand-chrome-raised: #1b2035;
+  --brand-chrome-ink: #f7f8fa;
+  --brand-chrome-muted: #aeb8c9;
+  --brand-chrome-line: rgba(247, 248, 250, 0.16);
+
+  --brand-radius-sm: 8px;
+  --brand-radius: 12px;
+  --brand-radius-lg: 18px;
+
+  --brand-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 10px 28px rgba(16, 24, 40, 0.06);
+  --brand-shadow-lg: 0 2px 6px rgba(16, 24, 40, 0.06), 0 28px 70px rgba(16, 24, 40, 0.12);
+
+  --brand-display: 'Avenir Next', 'Segoe UI Variable Display', ui-sans-serif, system-ui, sans-serif;
+  --brand-body: 'Avenir Next', 'Segoe UI Variable Text', ui-sans-serif, system-ui, sans-serif;
+  --brand-mono: 'SFMono-Regular', 'Cascadia Code', ui-monospace, monospace;
+
+  --brand-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --brand-flow: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+html {
+  background: var(--brand-paper);
+  color-scheme: light;
+}
+
+body {
+  color: var(--brand-ink);
+  font-family: var(--brand-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+body *::selection {
+  color: var(--brand-ink);
+  background: var(--brand-amber);
+}
+
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--brand-coral-ink);
+  outline-offset: 2px;
+}
+
+/*
+ * The brand lockup. Marketing, the portfolio header and a site workspace all
+ * render the same mark and wordmark so the product never changes face between
+ * the front page and the tools.
+ */
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--brand-ink);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  text-decoration: none;
+}
+
+.wordmark-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(22, 26, 35, 0.1), 0 2px 8px rgba(16, 24, 40, 0.14);
+}
+
+.wordmark:hover {
+  color: var(--brand-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -40,13 +40,16 @@ export default async function PortfolioPage() {
     <main className="app-shell">
       <nav className="app-header"><BrandLink /><span className="text-link">{auth.user.email}</span></nav>
       <div className="app-main">
-        <div className="app-intro">
+        <header className="app-intro">
           <div>
-            <div className="eyebrow"><span className="eyebrow-dot" /> {administrator ? 'platform administrator · all websites' : 'your websites'}</div>
-            <h1 className="app-heading">One place for<br /><em>every website.</em></h1>
+            <p className="eyebrow">
+              <span className="eyebrow-dot" />
+              {administrator ? 'platform administrator' : 'your websites'} · {visibleWebsites.length}
+            </p>
+            <h1>Websites</h1>
           </div>
-          <p>{administrator ? 'Every website across all accounts. Choose a website to open its admin; the account owner is shown on each card.' : 'Choose a website to open its admin, or create a new one. Ada will prepare the workspace and guide you from there.'}</p>
-        </div>
+          <p>{administrator ? 'Every website across all accounts. The account owner is shown on each card.' : 'Open a workspace, or start a new website below.'}</p>
+        </header>
         <section className="site-grid" aria-label={administrator ? 'All websites' : 'Your websites'}>
           {visibleWebsites.length === 0 ? (
             <div className="empty-card">Your websites will appear here. Create one to get started with Ada.</div>
