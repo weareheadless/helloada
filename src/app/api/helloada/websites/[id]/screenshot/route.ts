@@ -3,7 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import type { BrowserWorker } from '@cloudflare/puppeteer'
 import { currentUser } from '@/lib/auth'
 import { isPlatformAdmin } from '@/lib/platform-admin'
-import { ownedWebsite } from '@/lib/website'
+import { ownedWebsite, siteAgentRequest } from '@/lib/website'
 import { cachedScreenshot, captureWithBrowserCleanup, liveScreenshotOrigin, managedScreenshotOrigin, screenshotRequestAllowed } from '@/lib/screenshot-policy'
 import type { ScreenshotBucket } from '@/lib/screenshot-policy'
 
@@ -17,9 +17,20 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!website) return Response.json({ error: 'website_not_found' }, { status: 404 })
   if (!website.tenantId) return Response.json({ error: 'website_not_ready' }, { status: 404 })
 
-  let stage = 'health'
+  let stage = 'identity'
   try {
-    const candidate = managedScreenshotOrigin(website.workerUrl)
+    // The record owns the address the site is served from. A document copy
+    // written at bootstrap goes stale when the Worker is renamed or a domain is
+    // attached, and a stale origin captures nothing.
+    const identityResponse = await siteAgentRequest(String(website.tenantId), '/identity', {
+      signal: AbortSignal.timeout(15_000),
+    })
+    const identity = identityResponse.ok
+      ? await identityResponse.json().catch(() => null) as { publicUrl?: string } | null
+      : null
+    stage = 'health'
+    const candidate = managedScreenshotOrigin(identity?.publicUrl)
+      || managedScreenshotOrigin(website.workerUrl)
     if (!candidate) return Response.json({ error: 'website_not_ready' }, { status: 404 })
     const origin = await liveScreenshotOrigin(candidate, website.tenantId)
     if (!origin) return Response.json({ error: 'website_identity_unverified' }, { status: 503 })
