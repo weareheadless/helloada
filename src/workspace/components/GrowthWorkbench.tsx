@@ -1114,8 +1114,19 @@ function Analytics({
     }
     return { sessions, users, views, events }
   }
-  const gaNow = gaSum(gaStart, gaEnd)
-  const gaBefore = gaSum(gaPrevStart, gaPrevEnd)
+  const gaHasHistory = daily.length > 0
+  const weekly = (data.current_week ?? {}) as Record<string, unknown>
+  const weeklyDelta = (data.delta_pct ?? {}) as Record<string, unknown>
+  const weeklyNum = (key: string) => typeof weekly[key] === 'number' ? weekly[key] as number : 0
+  const gaNow = gaHasHistory
+    ? gaSum(gaStart, gaEnd)
+    : { sessions: weeklyNum('sessions'), users: weeklyNum('activeUsers'), views: weeklyNum('screenPageViews'), events: weeklyNum('eventCount') }
+  const gaBefore = gaHasHistory ? gaSum(gaPrevStart, gaPrevEnd) : { sessions: 0, users: 0, views: 0, events: 0 }
+  const gaDelta = (current: number, previous: number, key: string) => {
+    if (gaHasHistory) return delta(current, previous)
+    const value = typeof weeklyDelta[key] === 'number' ? weeklyDelta[key] as number : null
+    return <small className={value === null ? '' : value > 0 ? 'gw-up' : value < 0 ? 'gw-down' : ''}>{value === null ? '—' : `${value > 0 ? '+' : ''}${value}%`}</small>
+  }
   const gaTrend: TrendPoint[] = (gaStart && gaEnd ? daysBetween(gaStart, gaEnd) : []).map((date) => {
     const row = daily.find((item) => String(item.date) === date)
     return {
@@ -1150,7 +1161,7 @@ function Analytics({
   const formatDate = (value: string | undefined) => {
     if (!value) return '—'
     const date = new Date(`${value}T00:00:00.000Z`)
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(language, { day: 'numeric', month: 'short' })
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(language, { day: 'numeric', month: 'short', timeZone: 'UTC' })
   }
   const formatPct = (value: number | null) => (value === null ? '—' : `${(value * 100).toFixed(1)}%`)
   const delta = (current: number, previous: number) => {
@@ -1203,10 +1214,10 @@ function Analytics({
         {kpi(t('growth.workbench.impressions'), number(gscNow.impressions) ?? '0', delta(gscNow.impressions, gscBefore.impressions), t('growth.workbench.searchConsole'))}
         {kpi(t('growth.workbench.ctr'), formatPct(gscNow.ctr), delta(gscNow.ctr, gscBefore.ctr), t('growth.workbench.searchConsole'))}
         {kpi(t('growth.workbench.position'), gscNow.position === null ? '—' : gscNow.position.toFixed(1), <small className={gscBefore.position !== null && gscNow.position !== null && gscNow.position < gscBefore.position ? 'gw-up' : ''}>{gscBefore.position !== null && gscNow.position !== null ? `${gscNow.position <= gscBefore.position ? '' : '+'}${(gscNow.position - gscBefore.position).toFixed(1)}` : '—'}</small>, t('growth.workbench.searchConsole'))}
-        {kpi(t('growth.workbench.sessions'), number(gaNow.sessions) ?? '—', delta(gaNow.sessions, gaBefore.sessions), t('growth.workbench.googleAnalytics'))}
-        {kpi(t('growth.workbench.users'), number(gaNow.users) ?? '—', delta(gaNow.users, gaBefore.users), t('growth.workbench.googleAnalytics'))}
-        {kpi(t('growth.workbench.views'), number(gaNow.views) ?? '—', delta(gaNow.views, gaBefore.views), t('growth.workbench.googleAnalytics'))}
-        {kpi(t('growth.workbench.events'), number(gaNow.events) ?? '—', delta(gaNow.events, gaBefore.events), t('growth.workbench.googleAnalytics'))}
+        {kpi(t('growth.workbench.sessions'), number(gaNow.sessions) ?? '—', gaDelta(gaNow.sessions, gaBefore.sessions, 'sessions'), t('growth.workbench.googleAnalytics'))}
+        {kpi(t('growth.workbench.users'), number(gaNow.users) ?? '—', gaDelta(gaNow.users, gaBefore.users, 'activeUsers'), t('growth.workbench.googleAnalytics'))}
+        {kpi(t('growth.workbench.views'), number(gaNow.views) ?? '—', gaDelta(gaNow.views, gaBefore.views, 'screenPageViews'), t('growth.workbench.googleAnalytics'))}
+        {kpi(t('growth.workbench.events'), number(gaNow.events) ?? '—', gaDelta(gaNow.events, gaBefore.events, 'eventCount'), t('growth.workbench.googleAnalytics'))}
       </section>
 
       <div className="gw-an-grid">

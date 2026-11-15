@@ -1401,7 +1401,7 @@
   .gw-icon { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--gw-line); background: var(--helloada-panel); color: var(--helloada-muted); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
   .gw-icon svg { width: 15px; height: 15px; }
 
-  .gw-pipeline { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); background: var(--helloada-panel); border: 1px solid var(--gw-line); border-radius: 14px; overflow: hidden; }
+  .gw-pipeline { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--helloada-panel); border: 1px solid var(--gw-line); border-radius: 14px; overflow: hidden; }
   .gw-pipe { padding: 11px 13px 10px; border-right: 1px solid var(--gw-line); min-width: 0; }
   .gw-pipe:last-child { border-right: 0; }
   .gw-pipe b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
