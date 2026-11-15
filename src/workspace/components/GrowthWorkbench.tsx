@@ -678,6 +678,9 @@ function Detail({
           : ''
   const links = binding?.links ?? {}
   const conversation = binding?.conversationId ?? null
+  // An accepted task from before one-click Growth has no conversation yet. It
+  // can still be handed over; only a bound task opens its existing chat.
+  const canStart = state === 'open' || (state === 'working' && !conversation)
 
   return (
     <article className="gw-article">
@@ -744,7 +747,7 @@ function Detail({
                   : t('growth.workbench.resolvedNote')}
         </span>
         <div className="gw-actions">
-          {state === 'open' ? (
+          {canStart ? (
             <button
               type="button"
               className="gw-button gw-button-primary"
