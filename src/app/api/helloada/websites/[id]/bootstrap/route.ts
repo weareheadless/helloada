@@ -7,23 +7,23 @@ import { tenantAdminUrl } from '@/lib/tenant-admin'
 import { provisioningPhase, matchesGithubSource } from '@/lib/github-provisioning'
 import { ownedWebsite, startWebsiteBootstrap, websiteBootstrapStatus } from '@/lib/website'
 
-function workerUrlFrom(receipts: Record<string, unknown>) {
-  const worker = receipts.creating_worker
-  if (!worker || typeof worker !== 'object') return null
-  const value = (worker as { worker_url?: unknown }).worker_url
-  return typeof value === 'string' && value.trim() ? value.trim() : null
+type RemoteIdentity = {
+  workerUrl?: unknown
+  publicUrl?: unknown
+  adminUrl?: unknown
 }
 
-function receiptAdminUrl(workerUrl: string | null) {
-  if (!workerUrl) return null
-  return tenantAdminUrl(workerUrl.replace(/\/$/, '') + '/admin')
-}
-
-function verifiedAdminUrl(websiteUrl: unknown, workerUrl: string | null) {
-  const fromReceipt = receiptAdminUrl(workerUrl)
-  const recorded = tenantAdminUrl(websiteUrl)
-  if (recorded && fromReceipt && recorded !== fromReceipt) return null
-  return fromReceipt
+/**
+ * The tenant record is the authority for a website's addresses. A bootstrap
+ * receipt records what the run did at the time; it goes stale the moment the
+ * Worker is renamed or a domain is attached, so it is never used to decide
+ * where the admin lives.
+ */
+function recordAddresses(identity: unknown) {
+  const record = identity && typeof identity === 'object' ? identity as RemoteIdentity : {}
+  const workerUrl = typeof record.workerUrl === 'string' ? record.workerUrl.trim() : ''
+  const adminUrl = tenantAdminUrl(record.adminUrl)
+  return { workerUrl: workerUrl || null, adminUrl: adminUrl || null }
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -67,14 +67,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   ) {
     return NextResponse.json({ error: 'site_agent_status_contract_invalid' }, { status: 502 })
   }
-  const receipts = remote.resource_receipts && typeof remote.resource_receipts === 'object'
-    ? remote.resource_receipts as Record<string, unknown>
-    : {}
-  const workerUrl = workerUrlFrom(receipts)
+  const { workerUrl, adminUrl } = recordAddresses(remote.identity)
   const workspaceReady = remote.workspace_ready === true
-  const adminUrl = workspaceReady ? verifiedAdminUrl(website.adminUrl, workerUrl) : null
   if (workspaceReady && !adminUrl) {
-    return NextResponse.json({ error: 'verified_admin_origin_missing_or_mismatched' }, { status: 502 })
+    return NextResponse.json({ error: 'verified_admin_origin_missing' }, { status: 502 })
   }
 
   if (workspaceReady && adminUrl) {
@@ -159,13 +155,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   ) {
     return NextResponse.json({ error: 'site_agent_status_contract_invalid' }, { status: 502 })
   }
-  const receipts = state.resource_receipts && typeof state.resource_receipts === 'object'
-    ? state.resource_receipts as Record<string, unknown>
-    : {}
-  const workerUrl = workerUrlFrom(receipts)
-  const adminUrl = state.workspace_ready === true ? verifiedAdminUrl(website.adminUrl, workerUrl) : null
+  const { workerUrl, adminUrl } = recordAddresses(state.identity)
   if (state.workspace_ready === true && !adminUrl) {
-    return NextResponse.json({ error: 'verified_admin_origin_missing_or_mismatched' }, { status: 502 })
+    return NextResponse.json({ error: 'verified_admin_origin_missing' }, { status: 502 })
   }
   const failed = status === 'failed'
   await auth.payload.update({

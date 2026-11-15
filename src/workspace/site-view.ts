@@ -8,6 +8,7 @@ import type { HelloAdaSiteConfig } from '@/workspace/config/site'
 
 type SnapshotIdentity = {
   tenantId?: string
+  displayName?: string
   workerName?: string
   workerUrl?: string
   publicUrl?: string
@@ -108,7 +109,7 @@ export async function loadSiteView(siteKey: string) {
 
   const config: HelloAdaSiteConfig = {
     tenantId,
-    siteName: String(site.name || website.name || 'Your website'),
+    siteName: String(identity?.displayName || site.name || website.name || 'Your website'),
     defaultLocale: String(site.defaultLocale || 'en'),
     locales: Array.isArray(site.locales) && site.locales.length ? site.locales : ['en'],
     routes: {
