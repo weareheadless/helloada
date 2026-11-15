@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 
 import { fetchHelloAda } from '../api/fetchHelloAda'
 import { useHelloAdaTranslations } from '../api/useHelloAdaTranslations'
@@ -71,7 +72,38 @@ type Analytics = {
   gsc?: Record<string, unknown> | null
 }
 
-type Mode = 'opportunities' | 'work' | 'performance'
+type LocalBinding = {
+  taskId: string
+  opportunityId: string
+  title: string | null
+  pageUrl: string | null
+  groupId: string | null
+  conversationId: number | null
+  draftId: number | null
+  draftStatus: string | null
+  state: 'open' | 'working' | 'awaiting' | 'live' | 'resolved' | 'cancelled'
+  links: Record<string, string>
+}
+
+type LocalGroup = {
+  id: string
+  title: string | null
+  taskIds: string[]
+  opportunityIds: string[]
+  conversationId: number | null
+  draftId: number | null
+  state: 'open' | 'working' | 'awaiting' | 'live' | 'resolved' | 'cancelled'
+  links: Record<string, string>
+}
+
+type Bindings = { bindings?: LocalBinding[]; groups?: LocalGroup[] }
+
+type Mode = 'opportunities' | 'work' | 'analytics'
+type WorkState = 'open' | 'working' | 'awaiting' | 'live' | 'resolved'
+
+/** Findings whose fix is technical may be fixed together; content never is. */
+const GROUPABLE_TYPES = new Set(['O7', 'O8', 'O12'])
+const groupable = (row: Opportunity) => GROUPABLE_TYPES.has(row.type.slice(0, 2))
 
 const PAGE_LIMIT = 100
 /** Bounded read: the connector reports the true total, so a capped read is stated. */
@@ -128,6 +160,8 @@ export function GrowthWorkbench() {
   const [total, setTotal] = useState(0)
   const [envelope, setEnvelope] = useState<{ projectId?: string; siteId?: string; schemaVersion?: string }>({})
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [checked, setChecked] = useState<string[]>([])
+  const [local, setLocal] = useState<Bindings>({})
   const [mode, setMode] = useState<Mode>('opportunities')
   const [phase, setPhase] = useState<'loading' | 'ready' | 'failed'>('loading')
   const [error, setError] = useState<string | null>(null)
@@ -179,7 +213,7 @@ export function GrowthWorkbench() {
 
   const loadAnalytics = useCallback(async () => {
     try {
-      const response = await fetchHelloAda('/api/helloada/seo/analytics', { cache: 'no-store' })
+      const response = await fetchHelloAda('/api/helloada/seo/analytics?days=90', { cache: 'no-store' })
       if (!response.ok) throw new Error(await failure(response))
       setAnalytics((await response.json()) as Analytics)
       setAnalyticsPhase('ready')
@@ -189,15 +223,26 @@ export function GrowthWorkbench() {
     }
   }, [])
 
+  const loadBindings = useCallback(async () => {
+    try {
+      const response = await fetchHelloAda('/api/helloada/growth/bindings', { cache: 'no-store' })
+      if (response.ok) setLocal((await response.json()) as Bindings)
+    } catch {
+      // The connector board stays readable without the local binding ledger.
+    }
+  }, [])
+
   useEffect(() => {
     // The workbench opens on its own read; the connector is the only source.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadBindings()
     return () => request.current?.abort()
-  }, [load])
+  }, [load, loadBindings])
 
   useEffect(() => {
-    if (mode === 'performance' && analyticsPhase === 'idle') {
+    if (mode === 'analytics' && analyticsPhase === 'idle') {
       // Performance is read on first open, not on mount.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadAnalytics()
@@ -233,57 +278,121 @@ export function GrowthWorkbench() {
     }
   }
 
-  const confirm = async (task: ConnectorTask, status: 'in_progress' | 'delivered' | 'verified_outcome') => {
-    setBusy(`${task.id}:${status}`)
+  const conversationHref = (conversationId: number | null | undefined) => {
+    const url = new URL(window.location.href)
+    url.search = ''
+    if (conversationId) url.searchParams.set('conversation_id', String(conversationId))
+    return url.toString()
+  }
+
+  const openConversation = (conversationId: number | null | undefined) => {
+    window.location.assign(conversationHref(conversationId))
+  }
+
+  /** One click: the finding becomes a brief in Ada's workspace. */
+  const fixWithAda = async (row: Opportunity) => {
+    setBusy(`${row.id}:open`)
     setNotice(null)
     try {
-      const response = await fetchHelloAda(`/api/helloada/growth/tasks/${encodeURIComponent(task.id)}`, {
+      const response = await fetchHelloAda(`/api/helloada/growth/opportunities/${encodeURIComponent(row.id)}/open`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          opportunityId: task.opportunityId,
-          expectedStatus: task.status,
-          status,
-          idempotencyKey: `ui:${task.id}:${newKey()}`,
-          confirmationRef: `ui:task/${task.id}/${newKey()}`,
-        }),
+        body: JSON.stringify({}),
       })
       if (!response.ok) throw new Error(await failure(response))
-      setNotice(t('growth.workbench.confirmed'))
+      const body = (await response.json()) as { conversationId?: number; taskId?: string }
       await load()
+      await loadBindings()
+      openConversation(body.conversationId)
     } catch (exception) {
-      setNotice(`${t('growth.workbench.confirmFailed')}: ${(exception as Error)?.message ?? ''}`)
-      // The task and its Opportunity are one read; refresh both on a refusal.
+      setNotice(`${t('growth.workbench.openFailed')}: ${(exception as Error)?.message ?? ''}`)
       await load()
+      await loadBindings()
     } finally {
       setBusy(null)
     }
   }
 
+  /** Technical findings only, 2-10, one conversation and one release. */
+  const fixSelected = async () => {
+    if (checked.length < 2) return
+    setBusy('group:open')
+    setNotice(null)
+    try {
+      const response = await fetchHelloAda('/api/helloada/growth/groups', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ opportunityIds: checked }),
+      })
+      if (!response.ok) throw new Error(await failure(response))
+      const body = (await response.json()) as { conversationId?: number }
+      setChecked([])
+      await load()
+      await loadBindings()
+      openConversation(body.conversationId)
+    } catch (exception) {
+      setNotice(`${t('growth.workbench.openFailed')}: ${(exception as Error)?.message ?? ''}`)
+      await load()
+      await loadBindings()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const askAdaToAnalyse = (prompt: string) => {
+    const url = new URL(window.location.href)
+    url.search = ''
+    url.searchParams.set('ask', prompt.slice(0, 8000))
+    window.location.assign(url.toString())
+  }
+
+  const bindingsByOpportunity = useMemo(() => {
+    const map = new Map<string, LocalBinding>()
+    for (const binding of local.bindings || []) map.set(binding.opportunityId, binding)
+    return map
+  }, [local])
+
+  const stateFor = useCallback((row: Opportunity): WorkState => {
+    const binding = bindingsByOpportunity.get(row.id)
+    const task = row.tasks[0]
+    if (task?.status === 'verified_outcome' || binding?.state === 'resolved') return 'resolved'
+    if (binding?.state === 'live' || task?.status === 'delivered') return 'live'
+    if (binding?.state === 'awaiting' || task?.status === 'awaiting_human' || binding?.draftStatus === 'pending') return 'awaiting'
+    if (binding || task) return 'working'
+    return 'open'
+  }, [bindingsByOpportunity])
+
   const groups = useMemo(() => {
     const by = (status: string) => rows.filter((row) => row.status === status)
-    const tasks = rows.flatMap((row) => row.tasks.map((task) => ({ task, opportunity: row })))
+    const decisionRows = [...by('detected'), ...by('parked')]
+    const taskRows = rows.flatMap((row) => row.tasks.map((task) => ({ task, opportunity: row })))
+    const counts: Record<WorkState, number> = { open: 0, working: 0, awaiting: 0, live: 0, resolved: 0 }
+    for (const row of rows) {
+      if (['parked', 'rejected', 'closed'].includes(row.status)) continue
+      counts[stateFor(row)] += 1
+    }
     return {
       decide: by('detected'),
       parked: by('parked'),
-      active: [...by('accepted'), ...by('in_progress')],
-      awaiting: tasks.filter(({ task }) => task.status === 'awaiting_human'),
-      inFlight: tasks.filter(({ task }) => ['todo', 'in_progress', 'awaiting_human'].includes(task.status)),
-      finished: tasks.filter(({ task }) => ['delivered', 'verified_outcome'].includes(task.status)),
-      tasks,
+      decisionRows,
+      tasks: taskRows,
+      counts,
+      groups: local.groups || [],
+      bindings: local.bindings || [],
+      unbound: taskRows.filter(({ task }) => !(local.bindings || []).some((binding) => binding.taskId === task.id)),
     }
-  }, [rows])
+  }, [rows, local, stateFor])
 
   const selected = rows.find((row) => row.id === selectedId) ?? null
   const selectedTask = selected ? groups.tasks.find(({ opportunity }) => opportunity.id === selected.id)?.task ?? null : null
+  const selectedBinding = selected ? bindingsByOpportunity.get(selected.id) ?? null : null
 
-  const pipeline = [
-    { key: 'decide', label: t('growth.workbench.pipelineDecide'), value: counts?.detected ?? groups.decide.length, hot: true },
-    { key: 'parked', label: t('growth.workbench.pipelineParked'), value: counts?.parked ?? groups.parked.length },
-    { key: 'progress', label: t('growth.workbench.pipelineInProgress'), value: counts?.in_progress ?? groups.active.length },
-    { key: 'awaiting', label: t('growth.workbench.pipelineAwaiting'), value: groups.awaiting.length },
-    { key: 'delivered', label: t('growth.workbench.pipelineDelivered'), value: counts?.delivered ?? groups.finished.filter(({ task }) => task.status === 'delivered').length },
-    { key: 'verified', label: t('growth.workbench.pipelineVerified'), value: counts?.closed ?? groups.finished.filter(({ task }) => task.status === 'verified_outcome').length },
+  const pipeline: Array<{ key: string; label: string; value: number; hot?: boolean }> = [
+    { key: 'open', label: t('growth.workbench.stateOpen'), value: groups.counts.open, hot: true },
+    { key: 'working', label: t('growth.workbench.stateWorking'), value: groups.counts.working },
+    { key: 'awaiting', label: t('growth.workbench.stateAwaiting'), value: groups.counts.awaiting },
+    { key: 'live', label: t('growth.workbench.stateLive'), value: groups.counts.live },
+    { key: 'resolved', label: t('growth.workbench.stateResolved'), value: groups.counts.resolved },
   ]
 
   const date = (value: string | null | undefined) =>
@@ -330,10 +439,10 @@ export function GrowthWorkbench() {
           {t('growth.workbench.modeOpportunities')}<b>{number(total) ?? rows.length}</b>
         </button>
         <button type="button" aria-pressed={mode === 'work'} onClick={() => setMode('work')}>
-          {t('growth.workbench.modeWork')}<b>{groups.inFlight.length}</b>
+          {t('growth.workbench.modeWork')}<b>{groups.counts.working + groups.counts.awaiting}</b>
         </button>
-        <button type="button" aria-pressed={mode === 'performance'} onClick={() => setMode('performance')}>
-          {t('growth.workbench.modePerformance')}
+        <button type="button" aria-pressed={mode === 'analytics'} onClick={() => setMode('analytics')}>
+          {t('growth.workbench.modeAnalytics')}
         </button>
       </nav>
 
@@ -347,35 +456,55 @@ export function GrowthWorkbench() {
         </section>
       ) : phase === 'loading' && rows.length === 0 ? (
         <section className="gw-fail"><p>{t('growth.workbench.loading')}</p></section>
-      ) : mode === 'performance' ? (
-        <Performance
+      ) : mode === 'analytics' ? (
+        <Analytics
           analytics={analytics}
           phase={analyticsPhase}
           error={error}
           onRetry={() => void loadAnalytics()}
+          onAsk={askAdaToAnalyse}
           t={t}
           number={number}
+          language={language}
         />
       ) : mode === 'work' ? (
         <Work
-          tasks={groups.tasks}
-          busy={busy}
-          confirm={confirm}
+          groups={groups.groups}
+          bindings={groups.bindings}
+          unbound={groups.unbound}
+          stateFor={stateFor}
           t={t}
           date={date}
+          openConversation={openConversation}
           onOpen={(id) => { setSelectedId(id); setMode('opportunities') }}
         />
       ) : (
         <div className="gw-body">
           <aside className="gw-queue" aria-label={t('growth.workbench.queueDecide')}>
             <div className="gw-qhead"><span>{t('growth.workbench.queueDecide')}</span><b>{groups.decide.length}</b></div>
+            {checked.length ? (
+              <div className="gw-groupbar">
+                <span>{t('growth.workbench.groupHint').replace('{n}', String(checked.length))}</span>
+                <button
+                  type="button"
+                  className="gw-button gw-button-primary"
+                  disabled={checked.length < 2 || busy !== null}
+                  onClick={() => void fixSelected()}
+                >
+                  {busy === 'group:open' ? t('growth.workbench.opening') : t('growth.workbench.fixSelected')}
+                </button>
+              </div>
+            ) : null}
             {groups.decide.length === 0 ? (
               <div className="gw-empty">
                 <strong>{t('growth.workbench.emptyQueue')}</strong>
                 <p>{t('growth.workbench.emptyQueueBody')}</p>
               </div>
             ) : (
-              groups.decide.map((row) => (
+              groups.decide.map((row) => {
+                const selectable = groupable(row)
+                const isChecked = checked.includes(row.id)
+                return (
                 <button
                   type="button"
                   key={row.id}
@@ -384,6 +513,29 @@ export function GrowthWorkbench() {
                   aria-pressed={row.id === selectedId}
                 >
                   <span className="gw-row-meta">
+                    {selectable ? (
+                      <span
+                        role="checkbox"
+                        aria-checked={isChecked}
+                        aria-label={t('growth.workbench.selectForGroup')}
+                        tabIndex={0}
+                        className={isChecked ? 'gw-check gw-check-on' : 'gw-check'}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setChecked((current) => current.includes(row.id)
+                            ? current.filter((id) => id !== row.id)
+                            : current.length >= 10 ? current : [...current, row.id])
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter' && event.key !== ' ') return
+                          event.preventDefault()
+                          event.stopPropagation()
+                          setChecked((current) => current.includes(row.id)
+                            ? current.filter((id) => id !== row.id)
+                            : current.length >= 10 ? current : [...current, row.id])
+                        }}
+                      />
+                    ) : null}
                     <span className={`gw-type gw-type-${typeTone(row.dimension)}`}>{typeLabel(row.type)}</span>
                     {typeof row.scoreValue === 'number' ? <span className="gw-score">{row.scoreValue}</span> : null}
                   </span>
@@ -393,7 +545,8 @@ export function GrowthWorkbench() {
                     {row.pageUrl ? ` · ${pathLabel(row.pageUrl)}` : ''}
                   </small>
                 </button>
-              ))
+                )
+              })
             )}
 
             <div className="gw-divider">
@@ -438,9 +591,12 @@ export function GrowthWorkbench() {
               <Detail
                 row={selected}
                 task={selectedTask}
+                binding={selectedBinding}
+                state={stateFor(selected)}
                 busy={busy}
                 decide={decide}
-                confirm={confirm}
+                fixWithAda={fixWithAda}
+                openConversation={openConversation}
                 t={t}
                 date={date}
                 number={number}
@@ -466,21 +622,37 @@ export function GrowthWorkbench() {
 
 type Copy = (key: string) => string
 
+function stateLabel(state: WorkState, t: Copy) {
+  switch (state) {
+    case 'open': return t('growth.workbench.stateOpen')
+    case 'working': return t('growth.workbench.stateWorking')
+    case 'awaiting': return t('growth.workbench.stateAwaiting')
+    case 'live': return t('growth.workbench.stateLive')
+    default: return t('growth.workbench.stateResolved')
+  }
+}
+
 function Detail({
   row,
   task,
+  binding,
+  state,
   busy,
   decide,
-  confirm,
+  fixWithAda,
+  openConversation,
   t,
   date,
   number,
 }: {
   row: Opportunity
   task: ConnectorTask | null
+  binding: LocalBinding | null
+  state: WorkState
   busy: string | null
   decide: (row: Opportunity, operation: 'accept' | 'park' | 'reject') => Promise<void>
-  confirm: (task: ConnectorTask, status: 'in_progress' | 'delivered' | 'verified_outcome') => Promise<void>
+  fixWithAda: (row: Opportunity) => Promise<void>
+  openConversation: (conversationId: number | null | undefined) => void
   t: Copy
   date: (value: string | null | undefined) => string
   number: (value: unknown) => string | null
@@ -504,13 +676,14 @@ function Detail({
       : decision.confidence === 'medium' ? `${t('growth.workbench.confidence')} ${t('growth.workbench.confidenceMedium')}`
         : decision.confidence === 'low' ? `${t('growth.workbench.confidence')} ${t('growth.workbench.confidenceLow')}`
           : ''
-  const decidable = row.status === 'detected' || row.status === 'parked'
+  const links = binding?.links ?? {}
+  const conversation = binding?.conversationId ?? null
 
   return (
     <article className="gw-article">
       <div className="gw-detail-meta">
         <span className={`gw-type gw-type-${typeTone(row.dimension)}`}>{typeLabel(row.type)}</span>
-        <span className={`gw-state gw-state-${row.status}`}>{row.status.replace('_', ' ')}</span>
+        <span className={`gw-state gw-state-${state}`}>{stateLabel(state, t)}</span>
         <span className="gw-seen">{t('growth.workbench.firstSeen')} {date(row.firstDetectedAt)}</span>
       </div>
 
@@ -560,77 +733,54 @@ function Detail({
           </div>
         </div>
       </div>
-      <p className="gw-note">{t('growth.workbench.priorityNote')}</p>
 
-      {decidable ? (
-        <div className="gw-accept">
-          <strong>{t('growth.workbench.accept')}</strong>
-          <span>{t('growth.workbench.acceptNote')}</span>
-          <div className="gw-actions">
+      <div className="gw-handoff">
+        <strong>{stateLabel(state, t)}</strong>
+        <span>
+          {state === 'open' ? t('growth.workbench.openNote')
+            : state === 'working' ? t('growth.workbench.workingNote')
+              : state === 'awaiting' ? t('growth.workbench.awaitingNote')
+                : state === 'live' ? t('growth.workbench.liveNote')
+                  : t('growth.workbench.resolvedNote')}
+        </span>
+        <div className="gw-actions">
+          {state === 'open' ? (
             <button
               type="button"
               className="gw-button gw-button-primary"
               disabled={busy !== null}
-              onClick={() => void decide(row, 'accept')}
+              onClick={() => void fixWithAda(row)}
             >
-              {busy === `${row.id}:accept` ? t('growth.workbench.deciding') : t('growth.workbench.accept')}
+              {busy === `${row.id}:open` ? t('growth.workbench.opening') : t('growth.workbench.fixWithAda')}
             </button>
-            <button type="button" className="gw-button" disabled={busy !== null} onClick={() => void decide(row, 'park')}>
-              {t('growth.workbench.park')}
+          ) : (
+            <button type="button" className="gw-button gw-button-primary" onClick={() => openConversation(conversation)}>
+              {t('growth.workbench.openConversation')}
             </button>
-            <button type="button" className="gw-button gw-button-quiet" disabled={busy !== null} onClick={() => void decide(row, 'reject')}>
-              {t('growth.workbench.reject')}
-            </button>
-          </div>
+          )}
+          {links.live ? (
+            <a className="gw-button" href={links.live} target="_blank" rel="noreferrer">{t('growth.workbench.viewLive')}</a>
+          ) : null}
+          {links.commit ? (
+            <a className="gw-button" href={links.commit} target="_blank" rel="noreferrer">{t('growth.workbench.viewCommit')}</a>
+          ) : null}
+          {state === 'open' ? (
+            <>
+              <button type="button" className="gw-button" disabled={busy !== null} onClick={() => void decide(row, 'park')}>
+                {t('growth.workbench.park')}
+              </button>
+              <button type="button" className="gw-button gw-button-quiet" disabled={busy !== null} onClick={() => void decide(row, 'reject')}>
+                {t('growth.workbench.reject')}
+              </button>
+            </>
+          ) : null}
         </div>
-      ) : null}
-
-      {task ? (
-        <div className="gw-accept">
-          <strong>{t('growth.workbench.task')}</strong>
-          <span>
-            {task.status === 'awaiting_human'
-              ? t('growth.workbench.taskAwaiting')
-              : `${t('growth.workbench.taskAssigned')} ${assigneeLabel(task.assignedTo, t('growth.workbench.owner'))}`}
-          </span>
-          <div className="gw-actions">
-            {task.status === 'todo' ? (
-              <button
-                type="button"
-                className="gw-button gw-button-primary"
-                disabled={busy !== null}
-                onClick={() => void confirm(task, 'in_progress')}
-              >
-                {busy === `${task.id}:in_progress` ? t('growth.workbench.starting') : t('growth.workbench.startWork')}
-              </button>
-            ) : null}
-            {task.status === 'awaiting_human' || task.status === 'in_progress' ? (
-              <button
-                type="button"
-                className="gw-button gw-button-primary"
-                disabled={busy !== null}
-                onClick={() => void confirm(task, 'delivered')}
-              >
-                {busy === `${task.id}:delivered` ? t('growth.workbench.confirming') : t('growth.workbench.confirmDelivery')}
-              </button>
-            ) : null}
-            {task.status === 'delivered' ? (
-              <button
-                type="button"
-                className="gw-button gw-button-primary"
-                disabled={busy !== null}
-                onClick={() => void confirm(task, 'verified_outcome')}
-              >
-                {busy === `${task.id}:verified_outcome` ? t('growth.workbench.confirming') : t('growth.workbench.confirmVerified')}
-              </button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+      </div>
 
       <div className="gw-timeline">
         <div><b>{t('growth.workbench.detected')}</b><span>{date(row.firstDetectedAt)}</span></div>
-        <div><b>{t('growth.workbench.task')}</b><span>{task ? `${task.status.replace('_', ' ')} · ${date(task.updatedAt)}` : t('growth.workbench.noTask')}</span></div>
+        {binding ? <div><b>{t('growth.workbench.conversation')}</b><span>#{conversation ?? '—'}{binding.draftId ? ` · draft #${binding.draftId}` : ''}</span></div> : null}
+        <div><b>{t('growth.workbench.task')}</b><span>{task ? `${stateLabel(state, t)} · ${date(task.updatedAt)}` : t('growth.workbench.noTask')}</span></div>
         {row.decidedAt ? <div><b>{t('growth.workbench.decidedAt')}</b><span>{date(row.decidedAt)}{row.decidedBy ? ` · ${row.decidedBy}` : ''}</span></div> : null}
       </div>
     </article>
@@ -638,25 +788,36 @@ function Detail({
 }
 
 function Work({
-  tasks,
-  busy,
-  confirm,
+  groups,
+  bindings,
+  unbound,
+  stateFor,
   t,
   date,
+  openConversation,
   onOpen,
 }: {
-  tasks: Array<{ task: ConnectorTask; opportunity: Opportunity }>
-  busy: string | null
-  confirm: (task: ConnectorTask, status: 'in_progress' | 'delivered' | 'verified_outcome') => Promise<void>
+  groups: LocalGroup[]
+  bindings: LocalBinding[]
+  unbound: Array<{ task: ConnectorTask; opportunity: Opportunity }>
+  stateFor: (row: Opportunity) => WorkState
   t: Copy
   date: (value: string | null | undefined) => string
+  openConversation: (conversationId: number | null | undefined) => void
   onOpen: (opportunityId: string) => void
 }) {
-  const [showDone, setShowDone] = useState(false)
-  const open = tasks.filter(({ task }) => ['todo', 'in_progress', 'awaiting_human'].includes(task.status))
-  const done = tasks.filter(({ task }) => ['delivered', 'verified_outcome'].includes(task.status))
+  const grouped = new Set(groups.flatMap((group) => group.taskIds))
+  const single = bindings.filter((binding) => !binding.groupId && !grouped.has(binding.taskId))
+  const empty = groups.length === 0 && single.length === 0 && unbound.length === 0
 
-  if (tasks.length === 0) {
+  const links = (links: Record<string, string> | undefined) => (
+    <>
+      {links?.live ? <a className="gw-button" href={links.live} target="_blank" rel="noreferrer">{t('growth.workbench.viewLive')}</a> : null}
+      {links?.commit ? <a className="gw-button" href={links.commit} target="_blank" rel="noreferrer">{t('growth.workbench.viewCommit')}</a> : null}
+    </>
+  )
+
+  if (empty) {
     return (
       <section className="gw-fail">
         <h2>{t('growth.workbench.workEmpty')}</h2>
@@ -665,48 +826,54 @@ function Work({
     )
   }
 
-  const row = ({ task, opportunity }: { task: ConnectorTask; opportunity: Opportunity }) => (
-    <article className="gw-task" key={task.id}>
-      <div className="gw-detail-meta">
-        <span className={`gw-state gw-state-${task.status}`}>{t(`growth.workbench.status${task.status === 'verified_outcome' ? 'Verified' : task.status === 'awaiting_human' ? 'Awaiting' : task.status === 'in_progress' ? 'InProgress' : task.status === 'delivered' ? 'Delivered' : 'Todo'}`)}</span>
-        <span className="gw-seen">{date(task.updatedAt)}</span>
-      </div>
-      <h3>{task.title}</h3>
-      <p className="gw-summary">{t('growth.workbench.taskFor')} <button type="button" className="gw-link" onClick={() => onOpen(opportunity.id)}>{opportunity.title}</button></p>
-      <div className="gw-actions">
-        {task.status === 'todo' ? (
-          <button type="button" className="gw-button gw-button-primary" disabled={busy !== null} onClick={() => void confirm(task, 'in_progress')}>
-            {busy === `${task.id}:in_progress` ? t('growth.workbench.starting') : t('growth.workbench.startWork')}
-          </button>
-        ) : null}
-        {task.status === 'awaiting_human' || task.status === 'in_progress' ? (
-          <button type="button" className="gw-button gw-button-primary" disabled={busy !== null} onClick={() => void confirm(task, 'delivered')}>
-            {busy === `${task.id}:delivered` ? t('growth.workbench.confirming') : t('growth.workbench.confirmDelivery')}
-          </button>
-        ) : null}
-        {task.status === 'delivered' ? (
-          <button type="button" className="gw-button" disabled={busy !== null} onClick={() => void confirm(task, 'verified_outcome')}>
-            {busy === `${task.id}:verified_outcome` ? t('growth.workbench.confirming') : t('growth.workbench.confirmVerified')}
-          </button>
-        ) : null}
-      </div>
-    </article>
-  )
-
   return (
     <section className="gw-work">
-      {open.map(row)}
-      {done.length ? (
-        <>
-          <div className="gw-divider"><span>{t('growth.workbench.pipelineDelivered')}</span><b>{done.length}</b></div>
-          {(showDone ? done : done.slice(0, 5)).map(row)}
-          {done.length > 5 ? (
-            <button type="button" className="gw-more" onClick={() => setShowDone((value) => !value)}>
-              {showDone ? t('growth.workbench.showLess') : t('growth.workbench.showMore')}
+      {groups.map((group) => (
+        <article className="gw-task gw-task-group" key={group.id}>
+          <div className="gw-detail-meta">
+            <span className={`gw-state gw-state-${group.state}`}>{stateLabel(group.state === 'cancelled' ? 'open' : group.state, t)}</span>
+            <span className="gw-type gw-type-technical">{t('growth.workbench.groupBadge').replace('{n}', String(group.taskIds.length))}</span>
+            <span className="gw-seen">{date(group.links.updatedAt)}</span>
+          </div>
+          <h3>{group.title}</h3>
+          <p className="gw-summary">{t('growth.workbench.groupFor')} {group.opportunityIds.length} {t('growth.workbench.findings')}</p>
+          <div className="gw-actions">
+            <button type="button" className="gw-button gw-button-primary" onClick={() => openConversation(group.conversationId)}>
+              {t('growth.workbench.openConversation')}
             </button>
-          ) : null}
-        </>
-      ) : null}
+            {links(group.links)}
+          </div>
+        </article>
+      ))}
+      {single.map((binding) => (
+        <article className="gw-task" key={binding.taskId}>
+          <div className="gw-detail-meta">
+            <span className={`gw-state gw-state-${binding.state}`}>{stateLabel(binding.state === 'cancelled' ? 'open' : binding.state, t)}</span>
+            <span className="gw-seen">{binding.pageUrl ? pathLabel(binding.pageUrl) : ''}</span>
+          </div>
+          <h3>{binding.title || binding.taskId}</h3>
+          <div className="gw-actions">
+            <button type="button" className="gw-button gw-button-primary" onClick={() => openConversation(binding.conversationId)}>
+              {t('growth.workbench.openConversation')}
+            </button>
+            {links(binding.links)}
+            {binding.opportunityId ? (
+              <button type="button" className="gw-link" onClick={() => onOpen(binding.opportunityId)}>{t('growth.workbench.readFinding')}</button>
+            ) : null}
+          </div>
+        </article>
+      ))}
+      {unbound.map(({ task, opportunity }) => (
+        <article className="gw-task" key={task.id}>
+          <div className="gw-detail-meta">
+            <span className={`gw-state gw-state-${stateFor(opportunity)}`}>{stateLabel(stateFor(opportunity), t)}</span>
+            <span className="gw-seen">{date(task.updatedAt)}</span>
+          </div>
+          <h3>{task.title}</h3>
+          <p className="gw-summary">{t('growth.workbench.taskFor')} <button type="button" className="gw-link" onClick={() => onOpen(opportunity.id)}>{opportunity.title}</button></p>
+          <p className="gw-note">{t('growth.workbench.acceptedElsewhere')}</p>
+        </article>
+      ))}
     </section>
   )
 }
@@ -742,134 +909,454 @@ function sum(rows: unknown, field: string): number {
   }, 0)
 }
 
-function Performance({
+type TrendPoint = { date: string; a: number; b: number }
+
+function isoDay(value: Date): string {
+  return value.toISOString().slice(0, 10)
+}
+
+function shiftDays(value: string, days: number): string {
+  const date = new Date(`${value}T00:00:00.000Z`)
+  date.setUTCDate(date.getUTCDate() + days)
+  return isoDay(date)
+}
+
+function daysBetween(start: string, end: string): string[] {
+  const out: string[] = []
+  for (let day = start; day <= end && out.length < 400; day = shiftDays(day, 1)) out.push(day)
+  return out
+}
+
+function pctChange(current: number, previous: number): number | null {
+  return previous ? Math.round(((current - previous) / previous) * 1000) / 10 : null
+}
+
+/** Two independently scaled series in one honest chart: each line is read on
+ * its own scale, so a 2-impression day is visible next to 0 clicks. */
+function TrendChart({ points, labels, names, colors }: {
+  points: TrendPoint[]
+  labels: string[]
+  names: [string, string]
+  colors: [string, string]
+}) {
+  if (points.length < 2) return <p className="gw-note">{labels[0]}</p>
+  const width = 620
+  const height = 190
+  const pad = 8
+  const maxA = Math.max(1, ...points.map((point) => point.a))
+  const maxB = Math.max(1, ...points.map((point) => point.b))
+  const x = (index: number) => pad + (index / (points.length - 1)) * (width - pad * 2)
+  const yA = (value: number) => height - pad - (value / maxA) * (height - pad * 2)
+  const yB = (value: number) => height - pad - (value / maxB) * (height - pad * 2)
+  const line = (select: (point: TrendPoint) => number, scale: (value: number) => number) =>
+    points.map((point, index) => `${index === 0 ? 'M' : 'L'}${x(index).toFixed(1)},${scale(select(point)).toFixed(1)}`).join(' ')
+  const first = points[0]
+  const last = points[points.length - 1]
+
+  return (
+    <div className="gw-chart">
+      <div className="gw-legend">
+        <span><i style={{ background: colors[0] }} />{names[0]}</span>
+        <span><i style={{ background: colors[1] }} />{names[1]}</span>
+        <em>{first.date} → {last.date}</em>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${names[0]} and ${names[1]}`}>
+        {[0.25, 0.5, 0.75].map((ratio) => (
+          <line key={ratio} x1={pad} x2={width - pad} y1={pad + ratio * (height - pad * 2)} y2={pad + ratio * (height - pad * 2)} className="gw-grid" />
+        ))}
+        <path d={`${line((point) => point.b, yB)} L${x(points.length - 1)},${height - pad} L${x(0)},${height - pad} Z`} fill={colors[1]} opacity="0.08" />
+        <path d={line((point) => point.b, yB)} fill="none" stroke={colors[1]} strokeWidth="1.8" />
+        <path d={line((point) => point.a, yA)} fill="none" stroke={colors[0]} strokeWidth="2.2" />
+        {points.map((point, index) => (
+          <circle key={point.date} cx={x(index)} cy={yA(point.a)} r="2">
+            <title>{`${point.date} · ${names[0]}: ${point.a}`}</title>
+          </circle>
+        ))}
+      </svg>
+    </div>
+  )
+}
+
+function Analytics({
   analytics,
   phase,
   error,
   onRetry,
+  onAsk,
   t,
   number,
+  language,
 }: {
   analytics: Analytics | null
   phase: 'idle' | 'loading' | 'ready' | 'failed'
   error: string | null
   onRetry: () => void
+  onAsk: (prompt: string) => void
   t: Copy
   number: (value: unknown) => string | null
+  language: string
 }) {
+  const [days, setDays] = useState(28)
   if (phase === 'loading' || phase === 'idle') {
     return <section className="gw-fail"><p>{t('growth.workbench.loading')}</p></section>
   }
   if (phase === 'failed') {
     return (
       <section className="gw-fail">
-        <h2>{t('growth.workbench.performanceFailed')}</h2>
+        <h2>{t('growth.workbench.analyticsFailed')}</h2>
         <p>{error}</p>
         <button type="button" className="gw-button" onClick={onRetry}>{t('growth.workbench.retry')}</button>
       </section>
     )
   }
 
-  const ga4 = analytics?.ga4 ?? null
-  const gsc = analytics?.gsc ?? null
-  const period = analytics?.requestedPeriod
-  const fallbackCoverage = period?.startDate && period?.endDate ? `${period.startDate} → ${period.endDate}` : null
+  const gsc = (analytics?.gsc ?? null) as Record<string, unknown> | null
+  const ga4 = (analytics?.ga4 ?? null) as Record<string, unknown> | null
+  const gscPages = Array.isArray(gsc?.pages) ? (gsc?.pages as Array<Record<string, unknown>>) : []
+  const gscQueries = Array.isArray(gsc?.queries) ? (gsc?.queries as Array<Record<string, unknown>>) : []
+  const gscCoverage = (gsc?.coverage ?? {}) as Record<string, unknown>
+  const pageDates = gscPages.map((row) => String(row.date || '')).filter(Boolean).sort()
+  const gscEnd = typeof gscCoverage.endDate === 'string' ? gscCoverage.endDate : pageDates[pageDates.length - 1]
+  const gscStart = gscEnd ? shiftDays(gscEnd, -(days - 1)) : null
+  const gscPrevStart = gscStart ? shiftDays(gscStart, -days) : null
+  const gscPrevEnd = gscStart ? shiftDays(gscStart, -1) : null
+  const inWindow = (date: unknown, start: string | null, end: string | null) =>
+    typeof date === 'string' && start !== null && end !== null && date >= start && date <= end
 
-  const header = (label: string, data: Record<string, unknown> | null) => {
-    const connection = (data?.connection ?? {}) as Record<string, unknown>
-    const status = connection.status
-    return (
-      <header>
-        <h3>{label}</h3>
-        <span className={status === 'connected' ? 'gw-chip' : 'gw-chip gw-chip-warn'}>
-          <i />{connectionLabel(status, t)}
-        </span>
-      </header>
-    )
+  const aggregate = (rows: Array<Record<string, unknown>>) => {
+    let clicks = 0
+    let impressions = 0
+    let weighted = 0
+    let weight = 0
+    for (const row of rows) {
+      const rowClicks = typeof row.clicks === 'number' ? row.clicks : 0
+      const rowImpressions = typeof row.impressions === 'number' ? row.impressions : 0
+      clicks += rowClicks
+      impressions += rowImpressions
+      if (typeof row.position === 'number') {
+        weighted += row.position * rowImpressions
+        weight += rowImpressions
+      }
+    }
+    return { clicks, impressions, ctr: impressions ? clicks / impressions : 0, position: weight ? weighted / weight : null }
   }
 
-  const missing = (label: string, data: Record<string, unknown> | null) => (
-    <section className="gw-panel">
-      {header(label, data)}
-      <p className="gw-note">
-        {t('growth.workbench.noMeasurement')} — {t('growth.workbench.noMeasurementBody')}
-        {data && typeof data.reason === 'string' ? ` (${data.reason})` : ''}
-      </p>
-      {!data && analytics?.reason ? <p className="gw-note gw-note-warn">{analytics.reason}</p> : null}
-    </section>
+  const currentPages = gscPages.filter((row) => inWindow(row.date, gscStart, gscEnd))
+  const previousPages = gscPages.filter((row) => inWindow(row.date, gscPrevStart, gscPrevEnd))
+  const currentQueries = gscQueries.filter((row) => inWindow(row.date, gscStart, gscEnd))
+  const gscNow = aggregate(currentPages.length ? currentPages : currentQueries)
+  const gscBefore = aggregate(previousPages)
+
+  const queryRows = new Map<string, { clicks: number; impressions: number; weighted: number; weight: number }>()
+  for (const row of currentQueries) {
+    const query = String(row.query || '')
+    if (!query) continue
+    const entry = queryRows.get(query) ?? { clicks: 0, impressions: 0, weighted: 0, weight: 0 }
+    entry.clicks += typeof row.clicks === 'number' ? row.clicks : 0
+    entry.impressions += typeof row.impressions === 'number' ? row.impressions : 0
+    if (typeof row.position === 'number') {
+      entry.weighted += row.position * (typeof row.impressions === 'number' ? row.impressions : 0)
+      entry.weight += typeof row.impressions === 'number' ? row.impressions : 0
+    }
+    queryRows.set(query, entry)
+  }
+  const topQueries = [...queryRows.entries()]
+    .sort((a, b) => b[1].clicks - a[1].clicks || b[1].impressions - a[1].impressions)
+    .slice(0, 8)
+
+  const pageRows = new Map<string, { clicks: number; impressions: number; weighted: number; weight: number }>()
+  for (const row of currentPages) {
+    const url = String(row.url || '')
+    if (!url) continue
+    const entry = pageRows.get(url) ?? { clicks: 0, impressions: 0, weighted: 0, weight: 0 }
+    entry.clicks += typeof row.clicks === 'number' ? row.clicks : 0
+    entry.impressions += typeof row.impressions === 'number' ? row.impressions : 0
+    if (typeof row.position === 'number') {
+      entry.weighted += row.position * (typeof row.impressions === 'number' ? row.impressions : 0)
+      entry.weight += typeof row.impressions === 'number' ? row.impressions : 0
+    }
+    pageRows.set(url, entry)
+  }
+  const topPages = [...pageRows.entries()]
+    .sort((a, b) => b[1].clicks - a[1].clicks || b[1].impressions - a[1].impressions)
+    .slice(0, 8)
+
+  const gscTrend: TrendPoint[] = (gscStart && gscEnd ? daysBetween(gscStart, gscEnd) : []).map((date) => {
+    const dayRows = gscPages.filter((row) => String(row.date) === date)
+    const other = dayRows.length ? dayRows : gscQueries.filter((row) => String(row.date) === date)
+    return {
+      date,
+      a: other.reduce((total, row) => total + (typeof row.clicks === 'number' ? row.clicks : 0), 0),
+      b: other.reduce((total, row) => total + (typeof row.impressions === 'number' ? row.impressions : 0), 0),
+    }
+  })
+
+  const data = (ga4?.data ?? {}) as Record<string, unknown>
+  const history = (data.history ?? ga4?.history ?? {}) as Record<string, unknown>
+  const daily = Array.isArray(history.daily) ? (history.daily as Array<Record<string, unknown>>) : []
+  const historyCoverage = (history.coverage ?? {}) as Record<string, unknown>
+  const dailyDates = daily.map((row) => String(row.date || '')).filter(Boolean).sort()
+  const gaEnd = typeof historyCoverage.endDate === 'string' ? historyCoverage.endDate : dailyDates[dailyDates.length - 1]
+  const gaStart = gaEnd ? shiftDays(gaEnd, -(days - 1)) : null
+  const gaPrevStart = gaStart ? shiftDays(gaStart, -days) : null
+  const gaPrevEnd = gaStart ? shiftDays(gaStart, -1) : null
+  const gaSum = (start: string | null, end: string | null) => {
+    let sessions = 0
+    let users = 0
+    let views = 0
+    let events = 0
+    for (const row of daily) {
+      if (!inWindow(row.date, start, end)) continue
+      sessions += typeof row.sessions === 'number' ? row.sessions : 0
+      users += typeof row.activeUsers === 'number' ? row.activeUsers : 0
+      views += typeof row.screenPageViews === 'number' ? row.screenPageViews : 0
+      events += typeof row.eventCount === 'number' ? row.eventCount : 0
+    }
+    return { sessions, users, views, events }
+  }
+  const gaNow = gaSum(gaStart, gaEnd)
+  const gaBefore = gaSum(gaPrevStart, gaPrevEnd)
+  const gaTrend: TrendPoint[] = (gaStart && gaEnd ? daysBetween(gaStart, gaEnd) : []).map((date) => {
+    const row = daily.find((item) => String(item.date) === date)
+    return {
+      date,
+      a: typeof row?.sessions === 'number' ? row.sessions : 0,
+      b: typeof row?.screenPageViews === 'number' ? row.screenPageViews : 0,
+    }
+  })
+  const channels = Array.isArray(history.channels) ? (history.channels as Array<Record<string, unknown>>) : []
+  const devices = Array.isArray(history.devices) ? (history.devices as Array<Record<string, unknown>>) : []
+  const countries = Array.isArray(history.countries) ? (history.countries as Array<Record<string, unknown>>) : []
+  const events = Array.isArray(history.events) ? (history.events as Array<Record<string, unknown>>) : []
+  const gaPages = Array.isArray(history.pages) ? (history.pages as Array<Record<string, unknown>>) : []
+
+  const gscDevices = new Map<string, { clicks: number; impressions: number }>()
+  const gscCountries = new Map<string, { clicks: number; impressions: number }>()
+  for (const row of currentQueries) {
+    const device = String(row.device || '(not set)')
+    const country = String(row.country || '(not set)')
+    const d = gscDevices.get(device) ?? { clicks: 0, impressions: 0 }
+    d.clicks += typeof row.clicks === 'number' ? row.clicks : 0
+    d.impressions += typeof row.impressions === 'number' ? row.impressions : 0
+    gscDevices.set(device, d)
+    const c = gscCountries.get(country) ?? { clicks: 0, impressions: 0 }
+    c.clicks += typeof row.clicks === 'number' ? row.clicks : 0
+    c.impressions += typeof row.impressions === 'number' ? row.impressions : 0
+    gscCountries.set(country, c)
+  }
+  const top = (map: Map<string, { clicks: number; impressions: number }>) =>
+    [...map.entries()].sort((a, b) => b[1].clicks - a[1].clicks || b[1].impressions - a[1].impressions).slice(0, 6)
+
+  const formatDate = (value: string | undefined) => {
+    if (!value) return '—'
+    const date = new Date(`${value}T00:00:00.000Z`)
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(language, { day: 'numeric', month: 'short' })
+  }
+  const formatPct = (value: number | null) => (value === null ? '—' : `${(value * 100).toFixed(1)}%`)
+  const delta = (current: number, previous: number) => {
+    const value = pctChange(current, previous)
+    return <small className={value === null ? '' : value > 0 ? 'gw-up' : value < 0 ? 'gw-down' : ''}>{value === null ? '—' : `${value > 0 ? '+' : ''}${value}%`}</small>
+  }
+
+  const ask = () => {
+    const parts = [
+      `Analyse my site's analytics and tell me what to fix first.`,
+      `Search Console (${gscStart ?? '—'} → ${gscEnd ?? '—'}): ${gscNow.clicks} clicks, ${gscNow.impressions} impressions, CTR ${formatPct(gscNow.ctr)}, average position ${gscNow.position === null ? '—' : gscNow.position.toFixed(1)}.`,
+      `Analytics users (${gaStart ?? '—'} → ${gaEnd ?? '—'}): ${gaNow.sessions} sessions, ${gaNow.users} users, ${gaNow.views} views.`,
+    ]
+    if (topQueries.length) parts.push(`Top queries: ${topQueries.slice(0, 5).map(([query, row]) => `${query} (${row.clicks} clicks, ${row.impressions} impressions)`).join('; ')}.`)
+    parts.push("Explain what changed, what looks anomalous, and turn the highest-value finding into a Growth item with a concrete fix. Read the full Analytics tab before answering.")
+    onAsk(parts.join('\n'))
+  }
+
+  const kpi = (label: string, value: string, change: ReactNode, hint?: string) => (
+    <div className="gw-kpi">
+      <span>{label}</span>
+      <b>{value}</b>
+      {change}
+      {hint ? <em>{hint}</em> : null}
+    </div>
   )
 
-  const gscPanel = (() => {
-    const data = gsc
-    if (!data || data.status !== 'available') return missing(t('growth.workbench.performanceGsc'), data)
-    const pages = data.pages
-    const clicks = sum(pages, 'clicks')
-    const impressions = sum(pages, 'impressions')
-    const ctr = impressions > 0 ? clicks / impressions : null
-    const rowsWithPosition = Array.isArray(pages) ? pages.filter((row) => typeof (row as Record<string, unknown>)?.position === 'number') : []
-    const weighted = rowsWithPosition.reduce((total, row) => {
-      const entry = row as Record<string, number>
-      return total + entry.position * (entry.impressions || 0)
-    }, 0)
-    const weight = rowsWithPosition.reduce((total, row) => total + ((row as Record<string, number>).impressions || 0), 0)
-    const position = weight > 0 ? weighted / weight : null
-    const coverage = (data.coverage ?? {}) as Record<string, unknown>
-    const coverageLabel = coverage.startDate && coverage.endDate ? `${coverage.startDate} → ${coverage.endDate}` : fallbackCoverage
-    const queries = Array.isArray(data.queries) ? (data.queries as Array<Record<string, unknown>>) : []
-    return (
-      <section className="gw-panel">
-        {header(t('growth.workbench.performanceGsc'), data)}
-        <dl className="gw-stats">
-          <div><dt>{t('growth.workbench.clicks')}</dt><dd>{number(clicks) ?? '0'}</dd></div>
-          <div><dt>{t('growth.workbench.impressions')}</dt><dd>{number(impressions) ?? '0'}</dd></div>
-          <div><dt>{t('growth.workbench.ctr')}</dt><dd>{ctr === null ? '—' : `${(ctr * 100).toFixed(1)}%`}</dd></div>
-          <div><dt>{t('growth.workbench.position')}</dt><dd>{position === null ? '—' : position.toFixed(1)}</dd></div>
-          {coverageLabel ? <div><dt>{t('growth.workbench.coverage')}</dt><dd>{coverageLabel}</dd></div> : null}
-        </dl>
-        {queries.length ? (
-          <ul className="gw-list">
-            {queries.slice(0, 6).map((row, index) => (
-              <li key={`${row.query}-${index}`}><span>{String(row.query)}</span><b>{number(row.clicks) ?? ''}</b></li>
+  return (
+    <div className="gw-analytics">
+      <header className="gw-an-head">
+        <div>
+          <p className="gw-eyebrow">{t('growth.workbench.analyticsEyebrow')}</p>
+          <h2>{t('growth.workbench.analyticsTitle')}</h2>
+          <p className="gw-an-sub">{t('growth.workbench.analyticsSub')}</p>
+        </div>
+        <div className="gw-an-actions">
+          <span className="gw-range" role="group" aria-label={t('growth.workbench.range')}>
+            {[7, 28, 90].map((value) => (
+              <button key={value} type="button" aria-pressed={days === value} onClick={() => setDays(value)}>{value}d</button>
             ))}
-          </ul>
-        ) : null}
-        {(data.connection as Record<string, unknown> | undefined)?.status === 'ambiguous'
-          ? <p className="gw-note gw-note-warn">{t('growth.workbench.ambiguousNote')}</p> : null}
-      </section>
-    )
-  })()
+          </span>
+          <button type="button" className="gw-button gw-button-primary" onClick={ask}>
+            {t('growth.workbench.askToAnalyse')}
+          </button>
+        </div>
+      </header>
 
-  const ga4Panel = (() => {
-    const data = ga4
-    if (!data || data.status !== 'available') return missing(t('growth.workbench.performanceGa4'), data)
-    const metrics = (data.data ?? {}) as Record<string, unknown>
-    const current = (metrics.current_week ?? {}) as Record<string, unknown>
-    const delta = (metrics.delta_pct ?? {}) as Record<string, unknown>
-    const topPages = Array.isArray(metrics.top_pages) ? (metrics.top_pages as Array<Record<string, unknown>>) : []
-    const coverage = (data.coverage ?? {}) as Record<string, unknown>
-    const coverageLabel = coverage.startDate && coverage.endDate ? `${coverage.startDate} → ${coverage.endDate}` : fallbackCoverage
-    const latest = (data.latestSync ?? {}) as Record<string, unknown>
-    return (
-      <section className="gw-panel">
-        {header(t('growth.workbench.performanceGa4'), data)}
-        <dl className="gw-stats">
-          <div><dt>{t('growth.workbench.users')}</dt><dd>{number(current.activeUsers) ?? '—'}{typeof delta.activeUsers === 'number' ? <small>{delta.activeUsers > 0 ? '+' : ''}{delta.activeUsers}%</small> : null}</dd></div>
-          <div><dt>{t('growth.workbench.sessions')}</dt><dd>{number(current.sessions) ?? '—'}{typeof delta.sessions === 'number' ? <small>{delta.sessions > 0 ? '+' : ''}{delta.sessions}%</small> : null}</dd></div>
-          {coverageLabel ? <div><dt>{t('growth.workbench.coverage')}</dt><dd>{coverageLabel}</dd></div> : null}
-          {latest.status ? <div><dt>{t('growth.workbench.latestSync')}</dt><dd>{String(latest.status)}</dd></div> : null}
-        </dl>
-        {topPages.length ? (
-          <ul className="gw-list">
-            {topPages.slice(0, 6).map((page, index) => (
-              <li key={`${page.path}-${index}`}><span>{pathLabel(String(page.path))}</span><b>{number(page.views) ?? ''}</b></li>
-            ))}
-          </ul>
-        ) : null}
-        {(data.connection as Record<string, unknown> | undefined)?.status === 'ambiguous'
-          ? <p className="gw-note gw-note-warn">{t('growth.workbench.ambiguousNote')}</p> : null}
+      <section className="gw-kpis" aria-label={t('growth.workbench.analyticsTitle')}>
+        {kpi(t('growth.workbench.clicks'), number(gscNow.clicks) ?? '0', delta(gscNow.clicks, gscBefore.clicks), t('growth.workbench.searchConsole'))}
+        {kpi(t('growth.workbench.impressions'), number(gscNow.impressions) ?? '0', delta(gscNow.impressions, gscBefore.impressions), t('growth.workbench.searchConsole'))}
+        {kpi(t('growth.workbench.ctr'), formatPct(gscNow.ctr), delta(gscNow.ctr, gscBefore.ctr), t('growth.workbench.searchConsole'))}
+        {kpi(t('growth.workbench.position'), gscNow.position === null ? '—' : gscNow.position.toFixed(1), <small className={gscBefore.position !== null && gscNow.position !== null && gscNow.position < gscBefore.position ? 'gw-up' : ''}>{gscBefore.position !== null && gscNow.position !== null ? `${gscNow.position <= gscBefore.position ? '' : '+'}${(gscNow.position - gscBefore.position).toFixed(1)}` : '—'}</small>, t('growth.workbench.searchConsole'))}
+        {kpi(t('growth.workbench.sessions'), number(gaNow.sessions) ?? '—', delta(gaNow.sessions, gaBefore.sessions), t('growth.workbench.googleAnalytics'))}
+        {kpi(t('growth.workbench.users'), number(gaNow.users) ?? '—', delta(gaNow.users, gaBefore.users), t('growth.workbench.googleAnalytics'))}
+        {kpi(t('growth.workbench.views'), number(gaNow.views) ?? '—', delta(gaNow.views, gaBefore.views), t('growth.workbench.googleAnalytics'))}
+        {kpi(t('growth.workbench.events'), number(gaNow.events) ?? '—', delta(gaNow.events, gaBefore.events), t('growth.workbench.googleAnalytics'))}
       </section>
-    )
-  })()
 
-  return <div className="gw-performance">{gscPanel}{ga4Panel}</div>
+      <div className="gw-an-grid">
+        <section className="gw-panel gw-panel-wide">
+          <header>
+            <h3>{t('growth.workbench.searchTrend')}</h3>
+            <span className="gw-an-period">{formatDate(gscStart ?? undefined)} → {formatDate(gscEnd ?? undefined)}</span>
+          </header>
+          <TrendChart
+            points={gscTrend}
+            labels={[t('growth.workbench.noMeasurementBody')]}
+            names={[t('growth.workbench.clicks'), t('growth.workbench.impressions')]}
+            colors={['#1f7a68', '#9aa7bd']}
+          />
+        </section>
+        <section className="gw-panel">
+          <header>
+            <h3>{t('growth.workbench.topQueries')}</h3>
+            <span className="gw-an-period">{currentQueries.length ? `${queryRows.size} ${t('growth.workbench.queries')}` : '—'}</span>
+          </header>
+          {topQueries.length ? (
+            <ul className="gw-rank">
+              {topQueries.map(([query, row]) => (
+                <li key={query}>
+                  <span>{query}</span>
+                  <b>{number(row.clicks) ?? 0}</b>
+                  <small>{number(row.impressions) ?? 0} · {row.weight ? `#${(row.weighted / row.weight).toFixed(1)}` : '—'}</small>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="gw-note">{t('growth.workbench.noQueries')}</p>}
+        </section>
+      </div>
+
+      <div className="gw-an-grid">
+        <section className="gw-panel">
+          <header><h3>{t('growth.workbench.topPages')} · {t('growth.workbench.searchConsole')}</h3></header>
+          {topPages.length ? (
+            <ul className="gw-rank">
+              {topPages.map(([url, row]) => (
+                <li key={url}><span>{pathLabel(url)}</span><b>{number(row.clicks) ?? 0}</b><small>{number(row.impressions) ?? 0} · {row.weight ? `#${(row.weighted / row.weight).toFixed(1)}` : '—'}</small></li>
+              ))}
+            </ul>
+          ) : <p className="gw-note">{t('growth.workbench.noMeasurement')}</p>}
+        </section>
+        <section className="gw-panel">
+          <header><h3>{t('growth.workbench.devices')} · {t('growth.workbench.searchConsole')}</h3></header>
+          {top(gscDevices).length ? (
+            <ul className="gw-bars">
+              {top(gscDevices).map(([label, row]) => {
+                const max = Math.max(...top(gscDevices).map(([, item]) => item.clicks), 1)
+                return <li key={label}><span>{label}</span><i style={{ width: `${Math.max(2, (row.clicks / max) * 100)}%` }} /><b>{number(row.clicks) ?? 0}</b></li>
+              })}
+            </ul>
+          ) : <p className="gw-note">{t('growth.workbench.noMeasurement')}</p>}
+        </section>
+      </div>
+
+      <div className="gw-an-grid">
+        <section className="gw-panel gw-panel-wide">
+          <header>
+            <h3>{t('growth.workbench.sessions')} · {t('growth.workbench.views')}</h3>
+            <span className="gw-an-period">{formatDate(gaStart ?? undefined)} → {formatDate(gaEnd ?? undefined)}</span>
+          </header>
+          <TrendChart
+            points={gaTrend}
+            labels={[t('growth.workbench.noMeasurementBody')]}
+            names={[t('growth.workbench.sessions'), t('growth.workbench.views')]}
+            colors={['#6b5bd2', '#c9b8f0']}
+          />
+          <p className="gw-note">{t('growth.workbench.gaHistoryNote')}</p>
+        </section>
+        <section className="gw-panel">
+          <header><h3>{t('growth.workbench.channels')}</h3><span className="gw-an-period">{t('growth.workbench.last90')}</span></header>
+          {channels.length ? (
+            <ul className="gw-bars">
+              {channels.slice(0, 8).map((row) => {
+                const max = Math.max(...channels.map((item) => typeof item.sessions === 'number' ? item.sessions : 0), 1)
+                const sessions = typeof row.sessions === 'number' ? row.sessions : 0
+                return <li key={String(row.channel)}><span>{String(row.channel)}</span><i style={{ width: `${Math.max(2, (sessions / max) * 100)}%` }} /><b>{number(sessions) ?? 0}</b></li>
+              })}
+            </ul>
+          ) : <p className="gw-note">{t('growth.workbench.noMeasurement')}</p>}
+        </section>
+      </div>
+
+      <div className="gw-an-grid gw-an-grid-three">
+        <section className="gw-panel">
+          <header><h3>{t('growth.workbench.topPages')} · {t('growth.workbench.googleAnalytics')}</h3><span className="gw-an-period">{t('growth.workbench.last90')}</span></header>
+          {gaPages.length ? (
+            <ul className="gw-rank">
+              {gaPages.slice(0, 8).map((row) => (
+                <li key={String(row.path)}><span>{pathLabel(String(row.path))}</span><b>{number(row.views) ?? 0}</b><small>{number(row.sessions) ?? 0} {t('growth.workbench.sessions')}</small></li>
+              ))}
+            </ul>
+          ) : <p className="gw-note">{t('growth.workbench.noMeasurement')}</p>}
+        </section>
+        <section className="gw-panel">
+          <header><h3>{t('growth.workbench.devices')}</h3><span className="gw-an-period">{t('growth.workbench.last90')}</span></header>
+          {devices.length ? (
+            <ul className="gw-bars">
+              {devices.slice(0, 5).map((row) => {
+                const max = Math.max(...devices.map((item) => typeof item.sessions === 'number' ? item.sessions : 0), 1)
+                const sessions = typeof row.sessions === 'number' ? row.sessions : 0
+                return <li key={String(row.device)}><span>{String(row.device)}</span><i style={{ width: `${Math.max(2, (sessions / max) * 100)}%` }} /><b>{number(sessions) ?? 0}</b></li>
+              })}
+            </ul>
+          ) : <p className="gw-note">{t('growth.workbench.noMeasurement')}</p>}
+        </section>
+        <section className="gw-panel">
+          <header><h3>{t('growth.workbench.countries')}</h3><span className="gw-an-period">{t('growth.workbench.last90')}</span></header>
+          {countries.length ? (
+            <ul className="gw-rank">
+              {countries.slice(0, 6).map((row) => (
+                <li key={String(row.country)}><span>{String(row.country)}</span><b>{number(row.sessions) ?? 0}</b><small>{number(row.users) ?? 0} {t('growth.workbench.users')}</small></li>
+              ))}
+            </ul>
+          ) : <p className="gw-note">{t('growth.workbench.noMeasurement')}</p>}
+        </section>
+      </div>
+
+      <div className="gw-an-grid">
+        <section className="gw-panel">
+          <header><h3>{t('growth.workbench.events')}</h3><span className="gw-an-period">{t('growth.workbench.last90')}</span></header>
+          {events.length ? (
+            <ul className="gw-rank">
+              {events.slice(0, 10).map((row) => (
+                <li key={String(row.event)}><span>{String(row.event)}</span><b>{number(row.count) ?? 0}</b></li>
+              ))}
+            </ul>
+          ) : <p className="gw-note">{t('growth.workbench.noMeasurement')}</p>}
+        </section>
+        <section className="gw-panel">
+          <header><h3>{t('growth.workbench.countries')} · {t('growth.workbench.searchConsole')}</h3></header>
+          {top(gscCountries).length ? (
+            <ul className="gw-rank">
+              {top(gscCountries).map(([label, row]) => (
+                <li key={label}><span>{label}</span><b>{number(row.clicks) ?? 0}</b><small>{number(row.impressions) ?? 0} {t('growth.workbench.impressions')}</small></li>
+              ))}
+            </ul>
+          ) : <p className="gw-note">{t('growth.workbench.noMeasurement')}</p>}
+        </section>
+      </div>
+
+      <p className="gw-note gw-an-foot">
+        {t('growth.workbench.analyticsNote')}
+        {gsc && gsc.status !== 'available' ? ` ${t('growth.workbench.noMeasurement')}.` : ''}
+        {ga4 && ga4.status !== 'available' ? ` GA4: ${t('growth.workbench.noMeasurement')}.` : ''}
+        {analytics?.reason ? ` ${analytics.reason}` : ''}
+      </p>
+    </div>
+  )
 }
