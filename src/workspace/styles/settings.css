@@ -128,6 +128,7 @@
 .hs-field input,
 .hs-field select {
   width: 100%;
+  max-width: 520px;
   min-width: 0;
   height: 38px;
   padding: 0 11px;
@@ -198,7 +199,7 @@
 
 .hs-facts > div {
   display: grid;
-  grid-template-columns: minmax(120px, 34%) 1fr;
+  grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
   gap: 12px;
   padding: 9px 0;
   border-top: 1px solid var(--helloada-soft-line);
