@@ -24,8 +24,12 @@ export function matchesGithubSource(value: unknown, repository: string): boolean
     if (value === undefined || value === null) return true
     if (!value || typeof value !== 'object') return false
     const source = value as Record<string, unknown>
+    // A website started without an imported repository is provisioned from the
+    // canonical template: site-agent echoes that as `new_repository`, which is
+    // the same source as an empty intake request.
     return Object.keys(source).length === 0
-      || (source.kind === 'intake' && source.repository === '' && source.branch === 'main')
+      || ((source.kind === 'intake' || source.kind === 'new_repository')
+        && source.repository === '' && source.branch === 'main')
   }
   if (!value || typeof value !== 'object') return false
   const source = value as Record<string, unknown>

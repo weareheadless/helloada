@@ -41,6 +41,10 @@ export async function helloAdaIntelligenceIdentity(
   // Keep the original 16-character digest suffix so requests created before
   // this change can still be found even though their tenant slug used the name.
   const requestDigest = Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('').slice(0, 16)
+  // A tenant's runtime identity is the site's readable slug: it names the
+  // Worker, D1, R2 and queues, so `site-4f2a...` made every Cloudflare surface
+  // unmanageable. The digest stays for idempotency only; the caller replaces
+  // this placeholder with the tenant the website actually owns.
   const tenantId = `site-${requestDigest}`
 
   return {

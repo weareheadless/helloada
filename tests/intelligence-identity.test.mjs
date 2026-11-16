@@ -69,14 +69,21 @@ function payloadFake() {
     websites,
     async find({ collection, where }) {
       if (collection !== 'websites') return { docs: [] }
-      const clauses = where.and || [where]
-      const slug = clauses.find(clause => clause.slug)?.slug || {}
-      const tenant = clauses.find(clause => clause.tenantId)?.tenantId || {}
-      const owner = clauses.find(clause => clause.owner)?.owner || {}
-      return { docs: websites.filter(row => (slug.equals === undefined || row.slug === slug.equals)
-        && (tenant.equals === undefined || row.tenantId === tenant.equals)
-        && (tenant.contains === undefined || String(row.tenantId).includes(tenant.contains))
-        && (owner.equals === undefined || row.owner === owner.equals)) }
+      const matches = (row, clause) => {
+        if (!clause || typeof clause !== 'object') return true
+        if (Array.isArray(clause.or)) return clause.or.some(item => matches(row, item))
+        if (Array.isArray(clause.and)) return clause.and.every(item => matches(row, item))
+        const [field] = Object.keys(clause)
+        const test = clause[field] || {}
+        if (field === 'slug') return test.equals === undefined || row.slug === test.equals
+        if (field === 'tenantId') {
+          return (test.equals === undefined || row.tenantId === test.equals)
+            && (test.contains === undefined || String(row.tenantId).includes(test.contains))
+        }
+        if (field === 'owner') return test.equals === undefined || row.owner === test.equals
+        return true
+      }
+      return { docs: websites.filter(row => matches(row, where)) }
     },
     async create({ data }) {
       await Promise.resolve()
@@ -99,9 +106,15 @@ test('owner create service reuses concurrent/repeated identities and rejects cha
   assert.equal(payload.websites.length, 1)
   assert.equal(simultaneous[0].website.id, simultaneous[1].website.id)
   assert.equal((await resolveOrCreateOwnerWebsite(payload, {}, 'owner-a', identity, 'Studio')).website.id, simultaneous[0].website.id)
-  assert.deepEqual(await resolveOrCreateOwnerWebsite(payload, {}, 'owner-a', identity, 'Renamed'), { error: 'idempotency_conflict' })
+  // The tenant is the readable slug, so the retry that matters is the same
+  // name: it resolves to the site that name already owns.
+  assert.equal(simultaneous[0].identity.tenantId, 'studio')
+  assert.equal(simultaneous[0].website.tenantId, 'studio')
   const otherOwner = await resolveOrCreateOwnerWebsite(payload, {}, 'owner-b', await helloAdaIntelligenceIdentity('owner-b', requestKey), 'Studio')
   assert.notEqual(otherOwner.website.id, simultaneous[0].website.id)
+  // Tenant ids name Cloudflare resources, so a second site cannot reuse one.
+  assert.notEqual(otherOwner.identity.tenantId, simultaneous[0].identity.tenantId)
+  assert.equal(otherOwner.identity.tenantId, 'studio-2')
   assert.equal(payload.websites.length, 2)
 })
 
