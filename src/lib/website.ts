@@ -2,7 +2,7 @@ import type { currentUser } from './auth'
 import type { HelloAdaIntelligenceIdentity } from './intelligence-identity'
 import { isMatchingIntelligenceIdentity, isMatchingRegistrationScope, siteAgentRegistrationReceipt } from './intelligence-identity.ts'
 import { websiteScope } from './platform-admin.ts'
-import { uniqueSiteSlug } from './site-url.ts'
+import { siteSlugFromName, uniqueSiteSlug } from './site-url.ts'
 
 /**
  * Resolve a website by its owner-facing slug, or by its legacy numeric id so
@@ -109,6 +109,8 @@ export async function resolveOrCreateOwnerWebsite(
   const find = (tenantId: string) => payload.find({ collection: 'websites', req, where: { and: [
     { tenantId: { equals: tenantId } }, { owner: { equals: ownerId } },
   ] }, limit: 1, depth: 0 })
+  // A site created before readable identities carries its request digest in the
+  // tenant id; it keeps that identity so nothing is renamed underneath it.
   let website = (await find(identity.tenantId)).docs[0] as WebsiteRow | undefined
   if (!website) {
     const legacy = await payload.find({ collection: 'websites', req, where: { and: [
@@ -118,28 +120,45 @@ export async function resolveOrCreateOwnerWebsite(
     if (match === 'ambiguous') return { error: 'idempotency_conflict' as const }
     website = match as WebsiteRow | null || undefined
   }
-  const legacyTenantId = website ? String(website.tenantId || '') : ''
-  const resolvedIdentity = legacyTenantId && legacyTenantId !== identity.tenantId
-    ? { ...identity, tenantId: legacyTenantId, origin: { system: 'helloada' as const, externalId: legacyTenantId }, externalProjectId: `helloada:${legacyTenantId}` }
-    : identity
+  // A retry with the same name resolves to the site that name already owns.
+  if (!website) {
+    const candidate = siteSlugFromName(name)
+    const existing = await payload.find({ collection: 'websites', req, where: { and: [
+      { owner: { equals: ownerId } }, { slug: { equals: candidate } },
+    ] }, limit: 1, depth: 0 })
+    website = existing.docs[0] as WebsiteRow | undefined
+  }
   if (website && String(website.name || '') !== name) return { error: 'idempotency_conflict' as const }
   if (!website) {
     try {
-      // The URL label is derived from the name and owned by the owner; the
-      // tenant id stays the immutable runtime identity behind it.
+      // The slug is the tenant's runtime identity: it names the Worker, D1, R2
+      // and queues, so it must be readable and globally unique, not just unique
+      // among the owner's own sites.
       const slug = await uniqueSiteSlug(async (candidate) => {
-        const taken = await payload.find({ collection: 'websites', req, where: { slug: { equals: candidate } }, limit: 1, depth: 0 })
+        const taken = await payload.find({ collection: 'websites', where: { or: [
+          { slug: { equals: candidate } }, { tenantId: { equals: candidate } },
+        ] }, limit: 1, depth: 0 })
         return taken.docs.length > 0
       }, name)
       website = await payload.create({ collection: 'websites', req, data: {
-        name, slug, tenantId: resolvedIdentity.tenantId, owner: ownerId,
+        name, slug, tenantId: slug, owner: ownerId,
         phase: 'intake', domainStatus: 'not_connected',
       } })
     } catch (error) {
-      website = (await find(resolvedIdentity.tenantId)).docs[0] as WebsiteRow | undefined
+      website = (await find(siteSlugFromName(name))).docs[0] as WebsiteRow | undefined
       if (!website) throw error
       if (String(website.name || '') !== name) return { error: 'idempotency_conflict' as const }
     }
+  }
+  // The resolved tenant is the website's own runtime identity, whatever shape
+  // it has: a legacy digest id or a readable slug.
+  const tenantId = String(website.tenantId || '')
+  if (!tenantId) return { error: 'tenant_identity_missing' as const }
+  const resolvedIdentity = {
+    ...identity,
+    tenantId,
+    origin: { system: 'helloada' as const, externalId: tenantId },
+    externalProjectId: `helloada:${tenantId}`,
   }
   return { website, identity: resolvedIdentity }
 }
