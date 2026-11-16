@@ -52,14 +52,18 @@ test('website entry always enforces Payload access and an explicit owner or admi
   assert.equal(await ownedWebsite(null, '23'), null)
 })
 
-test('a site resolves by its readable slug and only numeric keys fall back to the legacy id', async () => {
+test('a site resolves by readable slug, then legacy id, then its runtime identity', async () => {
   const user = { id: 99, collection: 'users' }
-  const site = { id: 23, slug: 'studio' }
+  const site = { id: 23, slug: 'studio', tenantId: 'site-0123456789abcdef' }
   const queries = []
   const payload = { find: async (options) => {
     queries.push(options)
     const clause = options.where.and[0]
-    const matched = clause.slug ? clause.slug.equals === 'studio' : clause.id.equals === '23'
+    const matched = clause.slug
+      ? clause.slug.equals === 'studio' || clause.slug.equals === '24'
+      : clause.id
+        ? clause.id.equals === '23'
+        : clause.tenantId.equals === 'site-0123456789abcdef'
     return { docs: matched ? [site] : [] }
   } }
   const auth = { user, req: { user }, payload }
@@ -74,10 +78,15 @@ test('a site resolves by its readable slug and only numeric keys fall back to th
   assert.deepEqual(queries[0].where.and[0], { slug: { equals: '23' } })
   assert.deepEqual(queries[1].where.and[0], { id: { equals: '23' } })
 
+  // Every link and bookmark written before readable slugs names the runtime
+  // tenant, so that identity still opens the site it belongs to.
+  queries.length = 0
+  assert.deepEqual(await ownedWebsite(auth, 'site-0123456789abcdef'), site)
+  assert.deepEqual(queries.map((query) => Object.keys(query.where.and[0])[0]), ['slug', 'tenantId'])
+
   queries.length = 0
   assert.equal(await ownedWebsite(auth, 'missing'), null)
-  assert.equal(queries.length, 1)
-  assert.deepEqual(queries[0].where.and, [{ slug: { equals: 'missing' } }, websiteScope(user)])
+  assert.deepEqual(queries.map((query) => Object.keys(query.where.and[0])[0]), ['slug', 'tenantId'])
 })
 
 const { Websites } = await import('../src/collections/Websites.ts')

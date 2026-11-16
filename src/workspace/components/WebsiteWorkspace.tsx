@@ -12,7 +12,7 @@ import { HelloAdaMail } from './HelloAdaMail'
 import { EditableRichTextEditor } from './EditableRichTextEditor'
 import { PublicationProgress } from './PublicationProgress'
 import { CheckpointHistory } from './CheckpointHistory'
-import { fetchHelloAda } from '../api/fetchHelloAda'
+import { WORKSPACE_SNAPSHOT_TIMEOUT_MS, fetchHelloAda } from '../api/fetchHelloAda'
 import { uploadMediaFile } from '../api/upload-media'
 import { helloAdaPath } from '../config/site'
 import { useHelloAdaTranslations } from '../api/useHelloAdaTranslations'
@@ -1017,12 +1017,17 @@ function ReviewWorkspace() {
   const loadWorkspace = useCallback((background = false) => {
     if (!background) setLoading(true)
     if (!background) setError('')
-    return fetchHelloAda('/api/helloada/workspace', { cache: 'no-store' })
+    return fetchHelloAda('/api/helloada/workspace', { cache: 'no-store' }, WORKSPACE_SNAPSHOT_TIMEOUT_MS)
       .then(async (response) => {
         const body = (await response.json()) as WorkspaceSnapshot & { message?: string }
         if (!response.ok) throw new Error(responseMessage(body, t('error.workspaceLoad')))
         transientFailures.current.workspace = 0
         setWorkspace(body)
+        // The snapshot is served by the same tenant bridge as Ada's status, so a
+        // loaded workspace already proves Ada is reachable. The phase must not
+        // wait on a second call that can fail on its own, or the owner sits on
+        // "Connecting Ada" beside a workspace that is plainly loaded.
+        setAdaPhase((current) => (current === 'unknown' ? 'workspace' : current))
       })
       .catch((cause) => {
         // A background refresh must never replace a working conversation with a
