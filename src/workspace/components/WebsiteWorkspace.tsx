@@ -2346,11 +2346,6 @@ function ReviewWorkspace() {
         <div className={`helloada-workspace-grid ${buildSurfaceVisible ? 'has-build-surface' : ''}`}>
          {!buildSurfaceVisible ? <section id="helloada-website-pane" className="helloada-review-window" aria-label={t('workspace.websiteReview')}>
           <div className="helloada-review-toolbar">
-            <div className="helloada-window-dots" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
             <div className="helloada-window-title">
               <span>{t('owner.website')}</span>
             </div>
