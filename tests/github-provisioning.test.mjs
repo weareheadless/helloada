@@ -145,5 +145,8 @@ test('phase requires exact independent workspace and public-site readiness', () 
   assert.equal(provisioningPhase('weareheadless/x', { workspace_ready: true, website_live: true }), 'live')
   assert.equal(provisioningPhase('', { workspace_ready: true, website_live: true }), 'intake')
   assert.equal(matchesGithubSource({ kind: 'github_static', repository: 'weareheadless/x', branch: 'main' }, ''), false)
+  // A new site without an imported repository is templated by site-agent and
+  // echoes that source; the owner's workspace must open from it.
+  assert.equal(matchesGithubSource({ kind: 'new_repository', repository: '', branch: 'main' }, ''), true)
   assert.equal(matchesGithubSource(undefined, ''), true)
 })
