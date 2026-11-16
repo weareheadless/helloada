@@ -10,7 +10,7 @@ import { siteSlugFromName, uniqueSiteSlug } from './site-url.ts'
  */
 export async function ownedWebsite(auth: Awaited<ReturnType<typeof currentUser>>, key: string) {
   if (!auth) return null
-  const find = (field: 'slug' | 'id') => auth.payload.find({
+  const find = (field: 'slug' | 'id' | 'tenantId') => auth.payload.find({
     collection: 'websites',
     req: auth.req,
     overrideAccess: false,
@@ -24,9 +24,16 @@ export async function ownedWebsite(auth: Awaited<ReturnType<typeof currentUser>>
   })
   const bySlug = await find('slug')
   if (bySlug.docs[0]) return bySlug.docs[0]
-  if (!/^\d+$/.test(key)) return null
-  const byId = await find('id')
-  return byId.docs[0] || null
+  if (/^\d+$/.test(key)) {
+    const byId = await find('id')
+    if (byId.docs[0]) return byId.docs[0]
+  }
+  // A runtime tenant used to be the only address a website had, so every link
+  // and bookmark written before readable slugs still names it that way. It
+  // resolves here, and the page sends the owner on to the readable address
+  // instead of answering 404 for a site that exists.
+  const byTenant = await find('tenantId')
+  return byTenant.docs[0] || null
 }
 
 export async function siteAgentRequest(tenantId: string, path: string, init: RequestInit = {}) {
