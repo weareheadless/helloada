@@ -15,8 +15,8 @@ test('a tenant surface links to the owner address, not to its runtime identity',
   ]
   const lookup = lookupOf(rows)
 
-  assert.equal(await tenantWorkspacePath(lookup, 'superincompetence'), '/superincompetence')
-  assert.equal(await tenantWorkspacePath(lookup, 'site-be8225c72f3ba01a'), '/northstar-coffee')
+  assert.equal(await tenantWorkspacePath(lookup, 'superincompetence'), '/superincompetence/workspace')
+  assert.equal(await tenantWorkspacePath(lookup, 'site-be8225c72f3ba01a'), '/northstar-coffee/workspace')
 })
 
 test('an unknown, malformed or ambiguous tenant opens no guessed address', async () => {
@@ -28,8 +28,8 @@ test('an unknown, malformed or ambiguous tenant opens no guessed address', async
 })
 
 test('a site without a slug stays reachable by the address its old links use', () => {
-  assert.equal(workspacePathFor({ id: 7, slug: '' }), '/7')
-  assert.equal(workspacePathFor({ id: 7, slug: 'Bad Slug' }), '/7')
-  assert.equal(workspacePathFor({ slug: 'studio' }), '/studio')
+  assert.equal(workspacePathFor({ id: 7, slug: '' }), '/7/workspace')
+  assert.equal(workspacePathFor({ id: 7, slug: 'Bad Slug' }), '/7/workspace')
+  assert.equal(workspacePathFor({ slug: 'studio' }), '/studio/workspace')
   assert.equal(workspacePathFor(undefined), undefined)
 })
