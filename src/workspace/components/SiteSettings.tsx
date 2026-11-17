@@ -28,7 +28,13 @@ export type SiteSettingsSnapshot = {
     mode: 'managed' | 'external'
     provider: string
     mailbox: { address: string; domain: string; localPart: string; domainSource: string }
-    provisioning: { auto: boolean }
+    provisioning: {
+      auto: boolean
+      state?: string
+      address?: string
+      error?: string
+      lastAttemptAt?: string
+    }
     alerts: {
       enabled: boolean
       recipient: string
@@ -101,6 +107,8 @@ export function SiteSettings({
   )
   const [mode, setMode] = useState<'managed' | 'external'>(initial?.email.mode || 'managed')
   const [provider, setProvider] = useState(initial?.email.provider || '')
+  const [localPart, setLocalPart] = useState(initial?.email.mailbox.localPart || '')
+  const [mailDomain, setMailDomain] = useState(initial?.email.mailbox.domain || '')
   const [recipient, setRecipient] = useState(initial?.email.alerts.recipient || '')
   const [inbound, setInbound] = useState(initial?.email.alerts.inbound ?? true)
   const [external, setExternal] = useState(initial?.email.alerts.external ?? true)
@@ -127,6 +135,8 @@ export function SiteSettings({
     setCanonical(next.identity.canonicalHost.startsWith('www.') ? 'www' : 'apex')
     setMode(next.email.mode)
     setProvider(next.email.provider)
+    setLocalPart(next.email.mailbox.localPart)
+    setMailDomain(next.email.mailbox.domain)
     setRecipient(next.email.alerts.recipient)
     setInbound(next.email.alerts.inbound)
     setExternal(next.email.alerts.external)
@@ -160,12 +170,22 @@ export function SiteSettings({
     setError('')
     setNotice('')
     try {
+      // Only send the mailbox identity the owner actually changed, so saving
+      // the alerts never rewrites a domain that was registered elsewhere.
+      const mailbox: { localPart?: string; domain?: string } = {}
+      if (localPart.trim().toLowerCase() !== (snapshot?.email.mailbox.localPart || '').toLowerCase()) {
+        mailbox.localPart = localPart.trim()
+      }
+      if (mailDomain.trim().toLowerCase() !== (snapshot?.email.mailbox.domain || '').toLowerCase()) {
+        mailbox.domain = mailDomain.trim()
+      }
       const response = await fetch(api(slug, '/email'), {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           mode,
           provider: mode === 'external' ? provider : '',
+          ...(Object.keys(mailbox).length ? { mailbox } : {}),
           alerts: {
             enabled: true,
             recipient,
@@ -251,6 +271,17 @@ export function SiteSettings({
   }
 
   const { identity, domain: domainState, email, seo } = snapshot
+  const mailStatus = (() => {
+    if (email.mode === 'external') return 'Handled by another provider'
+    const state = email.provisioning.state || ''
+    if (state === 'active') return 'Sending and receiving on this domain'
+    if (state === 'action_required') return 'Waiting for HelloAda to restore the mail connection'
+    if (state === 'provisioning' || state === 'awaiting_runtime_release' || state === 'waiting_for_worker_release') {
+      return 'Setting up'
+    }
+    if (state === 'domain_required') return 'Add a domain to use your own mailbox'
+    return 'Not set up yet'
+  })()
   const domainConfigured = Boolean(identity.registeredDomain) && !/\.workers\.dev$/i.test(identity.registeredDomain)
   const serving = domainState.serving
 
@@ -413,10 +444,35 @@ export function SiteSettings({
                 </label>
               )}
             </div>
+            {mode === 'managed' && (
+              <div className="hs-inline-form">
+                <label className="hs-field">
+                  <span>Mailbox name</span>
+                  <input
+                    value={localPart}
+                    onChange={(event) => setLocalPart(event.target.value)}
+                    placeholder="hello"
+                    maxLength={64}
+                  />
+                </label>
+                <label className="hs-field">
+                  <span>Mail domain</span>
+                  <input
+                    value={mailDomain}
+                    onChange={(event) => setMailDomain(event.target.value)}
+                    placeholder="yourdomain.com"
+                    maxLength={253}
+                  />
+                </label>
+              </div>
+            )}
             <dl className="hs-facts">
               <div><dt>Mailbox</dt><dd>{email.mailbox.address || 'not provisioned'}</dd></div>
-              <div><dt>Mail domain</dt><dd>{email.mailbox.domain || '—'}</dd></div>
+              <div><dt>Mail status</dt><dd>{mailStatus}</dd></div>
             </dl>
+            {mode === 'managed' && email.provisioning.error && (
+              <p className="hs-muted">{email.provisioning.error}</p>
+            )}
             <label className="hs-field">
               <span>Notification email</span>
               <input
