@@ -32,7 +32,7 @@ export function SiteNav({
     { view: 'gallery', label: 'Gallery', href: `${base}?view=gallery` },
     { view: 'history', label: 'History', href: `${base}?view=history` },
     { view: 'messages', label: 'Messages', href: sitePath(slug, '/mail') },
-    ...(bookings ? [{ view: 'calendar' as const, label: 'Calendar', href: `${base}?view=calendar` }] : []),
+    ...(bookings ? [{ view: 'calendar' as const, label: 'Calendar', href: sitePath(slug, '/mail/calendar') }] : []),
     { view: 'settings', label: 'Settings', href: sitePath(slug, '/settings') },
   ]
 
