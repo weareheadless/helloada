@@ -15,21 +15,25 @@ import { sitePath } from './site-url.ts'
  */
 export type WorkspaceWebsite = { id?: unknown; slug?: unknown }
 
-export function workspacePathFor(website: WorkspaceWebsite | undefined): string | undefined {
+export function workspacePathFor(
+  website: WorkspaceWebsite | undefined,
+  suffix = '/workspace',
+): string | undefined {
   const slug = String(website?.slug ?? '').trim()
-  if (/^[a-z0-9][a-z0-9-]{0,47}$/.test(slug)) return sitePath(slug)
+  if (/^[a-z0-9][a-z0-9-]{0,47}$/.test(slug)) return sitePath(slug, suffix)
   // A site created before slugs is still reachable by its numeric id, which is
   // what its owner's old links use.
   const id = Number(website?.id)
-  return Number.isSafeInteger(id) && id > 0 ? sitePath(String(id)) : undefined
+  return Number.isSafeInteger(id) && id > 0 ? sitePath(String(id), suffix) : undefined
 }
 
 export async function tenantWorkspacePath(
   lookup: (tenantId: string) => Promise<WorkspaceWebsite[]>,
   tenantId: string,
+  suffix = '/workspace',
 ): Promise<string | undefined> {
   if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(tenantId)) return undefined
   const matches = await lookup(tenantId)
   // An ambiguous tenant must not silently open whichever row came first.
-  return matches.length === 1 ? workspacePathFor(matches[0]) : undefined
+  return matches.length === 1 ? workspacePathFor(matches[0], suffix) : undefined
 }

@@ -6,13 +6,16 @@ import test from 'node:test'
 const root = resolve(import.meta.dirname, '..')
 const read = (path) => readFileSync(resolve(root, path), 'utf8')
 
-test('the workspace renders Messages inside the control plane', () => {
+test('the workspace has one mailbox and hands old Messages links to it', () => {
   const nav = read('src/workspace/SiteNav.tsx')
   assert.match(nav, /view: 'messages', label: 'Messages'/)
-  assert.doesNotMatch(nav, /admin-entry\/\$\{tenantId\}\?next=.*\/mail\/inbox/)
+  assert.match(nav, /href: sitePath\(slug, '\/mail'\)/)
   const workspace = read('src/workspace/components/WebsiteWorkspace.tsx')
-  assert.match(workspace, /<HelloAdaMail \/>/)
-  assert.match(workspace, /<HelloAdaMail surface="calendar" \/>/)
+  // The mailbox is the control-plane route; the workspace only hands an old
+  // ?view=messages link over instead of rendering a second mailbox.
+  assert.match(workspace, /<MailboxHandoff slug=\{slug\} \/>/)
+  assert.match(workspace, /router\.replace\(sitePath\(slug, '\/mail\/inbox'\)\)/)
+  assert.doesNotMatch(workspace, /<HelloAdaMail \/>/)
   assert.equal(existsSync(resolve(root, 'src/workspace/components/MailflarePayloadView.tsx')), false)
 })
 

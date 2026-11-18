@@ -22,7 +22,7 @@ export async function WorkspacePage({
         bookings={Boolean(config.features.bookings)}
         view={view}
       />
-      <WorkspaceClient config={config} />
+      <WorkspaceClient config={config} slug={slug} />
     </>
   )
 }
