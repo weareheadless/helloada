@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 import { HelloAdaChatMessage } from './HelloAdaChatMessage'
 import { HelloAdaHistory } from './HelloAdaHistory'
@@ -14,6 +14,7 @@ import { PublicationProgress } from './PublicationProgress'
 import { CheckpointHistory } from './CheckpointHistory'
 import { WORKSPACE_SNAPSHOT_TIMEOUT_MS, fetchHelloAda } from '../api/fetchHelloAda'
 import { uploadMediaFile } from '../api/upload-media'
+import { sitePath } from '@/lib/site-url'
 import { helloAdaPath } from '../config/site'
 import { useHelloAdaTranslations } from '../api/useHelloAdaTranslations'
 import { mediaOrigin, mediaReferenceId, mediaUrl as migrationMediaUrl, resolveMediaUrl } from '../lib/media'
@@ -625,13 +626,23 @@ const displayEditorLabel = (entry: EditablePageEntry, entries: EditablePageEntry
   return `${entry.label} ${occurrence}`
 }
 
-export function WebsiteWorkspace() {
+function MailboxHandoff({ slug }: { slug: string }) {
+  const router = useRouter()
+  useEffect(() => {
+    router.replace(sitePath(slug, '/mail/inbox'))
+  }, [router, slug])
+  return <p className="helloada-workspace-loading" role="status">Opening your mailbox…</p>
+}
+
+export function WebsiteWorkspace({ slug }: { slug: string }) {
   const searchParams = useSearchParams()
   const site = useHelloAdaSite()
   if (searchParams.get('view') === 'history') return <HelloAdaHistory />
   if (searchParams.get('view') === 'growth') return <GrowthWorkbench />
   if (searchParams.get('view') === 'gallery') return <HelloAdaGallery />
-  if (searchParams.get('view') === 'messages') return <HelloAdaMail />
+  // The mailbox is one surface, owned by this app. Old ?view=messages links
+  // land on it instead of rendering a second mailbox implementation.
+  if (searchParams.get('view') === 'messages') return <MailboxHandoff slug={slug} />
   if (searchParams.get('view') === 'calendar' && site.features.bookings) return <HelloAdaMail surface="calendar" />
   return <ReviewWorkspace />
 }
