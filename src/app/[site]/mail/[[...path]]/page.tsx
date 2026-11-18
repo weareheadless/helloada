@@ -19,19 +19,18 @@ export default async function SiteMailPage({
   const mailboxPath = `/${(path || []).join('/')}`.replace(/\/$/, '') || '/'
   // The mailbox landing is the inbox; there is no upstream root page.
   if (mailboxPath === '/') redirect(sitePath(slug, '/mail/inbox'))
-  // The generated mailbox ships the mail routes only. Its account menu still
-  // links to Settings, Calendar and Drive, which live outside that route group;
-  // send them to the real surface instead of rendering an empty window.
+  // The generated package ships the mail routes and the owner calendar with its
+  // booking editor. Settings and Drive live outside it, so they keep going to
+  // the real surface instead of rendering an empty window.
   if (mailboxPath === '/settings' || mailboxPath.startsWith('/settings/')) {
     redirect(sitePath(slug, '/settings'))
   }
-  if (
-    mailboxPath === '/calendar' || mailboxPath.startsWith('/calendar/')
-    || mailboxPath === '/drive' || mailboxPath.startsWith('/drive/')
-  ) {
+  if (mailboxPath === '/drive' || mailboxPath.startsWith('/drive/')) {
     redirect(sitePath(slug, '/'))
   }
   const language = (await cookies()).get('payload-lng')?.value || 'en'
+  const onCalendar = mailboxPath === '/calendar' || mailboxPath.startsWith('/calendar/')
+    || mailboxPath === '/booking' || mailboxPath.startsWith('/booking/')
 
   return (
     <>
@@ -41,7 +40,7 @@ export default async function SiteMailPage({
         siteName={config.siteName}
         liveSite={config.routes.liveSite}
         bookings={Boolean(config.features.bookings)}
-        view={mailboxPath === '/calendar' ? 'calendar' : 'messages'}
+        view={onCalendar ? 'calendar' : 'messages'}
       />
       <main className="helloada-mailbox-page">
         <MailboxApp

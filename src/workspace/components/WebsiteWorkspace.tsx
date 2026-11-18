@@ -8,7 +8,6 @@ import { HelloAdaChatMessage } from './HelloAdaChatMessage'
 import { HelloAdaHistory } from './HelloAdaHistory'
 import { GrowthWorkbench } from './GrowthWorkbench'
 import { HelloAdaGallery } from './HelloAdaGallery'
-import { HelloAdaMail } from './HelloAdaMail'
 import { EditableRichTextEditor } from './EditableRichTextEditor'
 import { PublicationProgress } from './PublicationProgress'
 import { CheckpointHistory } from './CheckpointHistory'
@@ -626,11 +625,11 @@ const displayEditorLabel = (entry: EditablePageEntry, entries: EditablePageEntry
   return `${entry.label} ${occurrence}`
 }
 
-function MailboxHandoff({ slug }: { slug: string }) {
+function MailboxHandoff({ slug, target }: { slug: string; target: string }) {
   const router = useRouter()
   useEffect(() => {
-    router.replace(sitePath(slug, '/mail/inbox'))
-  }, [router, slug])
+    router.replace(sitePath(slug, target))
+  }, [router, slug, target])
   return <p className="helloada-workspace-loading" role="status">Opening your mailbox…</p>
 }
 
@@ -640,10 +639,12 @@ export function WebsiteWorkspace({ slug }: { slug: string }) {
   if (searchParams.get('view') === 'history') return <HelloAdaHistory />
   if (searchParams.get('view') === 'growth') return <GrowthWorkbench />
   if (searchParams.get('view') === 'gallery') return <HelloAdaGallery />
-  // The mailbox is one surface, owned by this app. Old ?view=messages links
-  // land on it instead of rendering a second mailbox implementation.
-  if (searchParams.get('view') === 'messages') return <MailboxHandoff slug={slug} />
-  if (searchParams.get('view') === 'calendar' && site.features.bookings) return <HelloAdaMail surface="calendar" />
+  // The mailbox and the calendar are one surface, owned by this app. Old
+  // ?view= links land on it instead of rendering a second implementation.
+  if (searchParams.get('view') === 'messages') return <MailboxHandoff slug={slug} target="/mail/inbox" />
+  if (searchParams.get('view') === 'calendar' && site.features.bookings) {
+    return <MailboxHandoff slug={slug} target="/mail/calendar" />
+  }
   return <ReviewWorkspace />
 }
 
