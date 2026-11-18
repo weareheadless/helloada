@@ -33,6 +33,9 @@ test('the mailbox is the generated package mounted on the tenant bridge', () => 
   assert.equal((page.match(/redirect\(sitePath\(slug, '\/'\)\)/g) || []).length, 1,
     'only Drive may leave the mailbox for the site root')
   assert.match(page, /const onCalendar = mailboxPath === '\/calendar'/)
+  // Booking configuration is not in the package yet, so the path is not served
+  // by a page that would fail to load the tenant's booking model.
+  assert.match(page, /if \(mailboxPath === '\/booking' \|\| mailboxPath\.startsWith\('\/booking\/'\)\) notFound\(\)/)
   assert.doesNotMatch(page, /<iframe/)
 })
 

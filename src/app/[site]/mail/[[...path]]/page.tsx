@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 
 import { MailboxApp } from '@weareheadless/helloada-mailbox-ui'
 
@@ -19,9 +19,12 @@ export default async function SiteMailPage({
   const mailboxPath = `/${(path || []).join('/')}`.replace(/\/$/, '') || '/'
   // The mailbox landing is the inbox; there is no upstream root page.
   if (mailboxPath === '/') redirect(sitePath(slug, '/mail/inbox'))
-  // The generated package ships the mail routes and the owner calendar with its
-  // booking editor. Settings and Drive live outside it, so they keep going to
-  // the real surface instead of rendering an empty window.
+  // The generated package ships the mail routes and the owner calendar. Its
+  // booking editor is not part of it: the tenant booking API is HelloAda's
+  // settings model, so there is no page here to render for that path.
+  if (mailboxPath === '/booking' || mailboxPath.startsWith('/booking/')) notFound()
+  // Settings and Drive live outside the package, so they keep going to the
+  // real surface instead of rendering an empty window.
   if (mailboxPath === '/settings' || mailboxPath.startsWith('/settings/')) {
     redirect(sitePath(slug, '/settings'))
   }
@@ -30,7 +33,6 @@ export default async function SiteMailPage({
   }
   const language = (await cookies()).get('payload-lng')?.value || 'en'
   const onCalendar = mailboxPath === '/calendar' || mailboxPath.startsWith('/calendar/')
-    || mailboxPath === '/booking' || mailboxPath.startsWith('/booking/')
 
   return (
     <>
