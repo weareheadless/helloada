@@ -29,8 +29,9 @@ test('the mailbox is the generated package mounted on the tenant bridge', () => 
   assert.match(page, /apiBase: `\/api\/helloada\/websites\/\$\{encodeURIComponent\(slug\)\}\/owner\/mail`/)
   // The calendar tabs move between Calendar and Bookings inside the package, so
   // neither may be redirected away from it.
-  assert.doesNotMatch(page, /mailboxPath === '\/calendar'/)
-  assert.doesNotMatch(page, /mailboxPath === '\/booking'/)
+  assert.match(page, /if \(mailboxPath === '\/drive'/)
+  assert.equal((page.match(/redirect\(sitePath\(slug, '\/'\)\)/g) || []).length, 1,
+    'only Drive may leave the mailbox for the site root')
   assert.match(page, /const onCalendar = mailboxPath === '\/calendar'/)
   assert.doesNotMatch(page, /<iframe/)
 })
