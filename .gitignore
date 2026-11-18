@@ -1,4 +1,6 @@
 node_modules/
+# A node_modules symlink is not a directory to git, so the slash form misses it.
+node_modules
 .next/
 .open-next/
 .wrangler/
