@@ -33,6 +33,17 @@ test('the frame and the full-screen tab open one address, and the app composes n
   assert.match(source, /previewUrlForRoute\(sourceReview\.url, selectedRoute\)/)
 })
 
+test('the workspace asks for its own review preview, not the newest on the site', () => {
+  // Another draft's later preview must not make this one look unbuilt: the
+  // workspace only frames an address whose commit and draft it checked, and a
+  // global "latest" could never satisfy that check again.
+  const source = read('src/workspace/components/WebsiteWorkspace.tsx')
+  assert.match(
+    source,
+    /source\/preview\?branch=preview&draft_id=\$\{encodeURIComponent\(String\(draft\.id\)\)\}/,
+  )
+})
+
 test('the workspace no longer proxies a compiled preview', () => {
   const proxy = read('src/lib/tenant-proxy.ts')
   assert.doesNotMatch(proxy, /next-router-state-tree|previewRuntimePath|redirect: previewRuntime/)
