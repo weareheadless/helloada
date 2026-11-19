@@ -1078,7 +1078,14 @@ function ReviewWorkspace() {
       setPreviewPlan({ ...plan, head_sha: headSha })
       if (!/^[0-9a-f]{40}$/.test(headSha)) throw new Error(t('workspace.previewError'))
 
-      const latestResponse = await fetchHelloAda('/api/helloada/source/preview?branch=preview', { cache: 'no-store' })
+      // Ask for this review's preview, not the newest one on the site: another
+      // draft's later preview must not make a built one look unbuilt, or the
+      // workspace queues a build it already has and never stops waiting for a
+      // ready preview that its own check rejects.
+      const latestResponse = await fetchHelloAda(
+        `/api/helloada/source/preview?branch=preview&draft_id=${encodeURIComponent(String(draft.id))}`,
+        { cache: 'no-store' },
+      )
       const latest = (await latestResponse.json()) as {
         id?: string
         status?: string
