@@ -1095,6 +1095,19 @@ function ReviewWorkspace() {
         build_step?: string
         preview_url?: string
       }
+      // A build that the backend has already finished for this exact revision
+      // is the preview the owner asked for: frame it now instead of waiting for
+      // the next poll to read the same answer again.
+      const adoptReadyPreview = (url: string, jobId: string) => {
+        setPreviewStep('')
+        setSourceReview({ draftId: draft.id, sha: headSha, url })
+        setPreviewPlan({ ...plan, head_sha: headSha, status: 'ready', requires_build: false })
+        const identity = `${draft.id}:${headSha}:${jobId}`
+        if (sourceReviewIdentityRef.current === identity) return
+        sourceReviewIdentityRef.current = identity
+        setPreviewStatus('refreshing')
+        setPreviewRevision((current) => current + 1)
+      }
       if (!isCurrentRequest()) return
       const sameRevision = draft?.kind === 'design'
         ? Boolean(headSha && latest.commit === headSha)
@@ -1109,14 +1122,7 @@ function ReviewWorkspace() {
         return
       }
       if (latestResponse.ok && sameRevision && latest.status === 'ready' && latestUrl) {
-        setPreviewStep('')
-        setSourceReview({ draftId: draft.id, sha: headSha, url: latestUrl })
-        setPreviewPlan({ ...plan, head_sha: headSha, status: 'ready', requires_build: false })
-        const identity = `${draft?.id || ''}:${headSha}:${latest.id}`
-        if (sourceReviewIdentityRef.current === identity) return
-        sourceReviewIdentityRef.current = identity
-        setPreviewStatus('refreshing')
-        setPreviewRevision((current) => current + 1)
+        adoptReadyPreview(latestUrl, String(latest.id || ''))
         return
       }
       setSourceReview({ draftId: draft.id, sha: headSha, url: '' })
@@ -1147,6 +1153,30 @@ function ReviewWorkspace() {
         if (!startResponse.ok) {
           const startBody = (await startResponse.json()) as { message?: string }
           throw new Error(startBody.message || t('workspace.previewError'))
+        }
+        // The start answers for this exact review, and the backend answers it
+        // deduplicated: it may already be the finished build, or the receipt
+        // this review lost to housekeeping. Ignoring that answer is what left
+        // the pane spinning on a preview the platform had ready.
+        const started = (await startResponse.json().catch(() => ({}))) as {
+          id?: string
+          status?: string
+          commit?: string
+          draft_id?: number
+          error?: string
+          preview_url?: string
+        }
+        if (!isCurrentRequest()) return
+        const startedUrl = typeof started.preview_url === 'string' ? started.preview_url.trim() : ''
+        if (started.status === 'ready' && startedUrl
+          && String(started.commit || '').toLowerCase() === headSha.toLowerCase()) {
+          adoptReadyPreview(startedUrl, String(started.id || ''))
+          return
+        }
+        if (started.status === 'failed') {
+          setPreviewStatus('error')
+          setError(started.error || t('workspace.previewError'))
+          return
         }
       }
       setPreviewStatus('refreshing')
@@ -2452,6 +2482,11 @@ function ReviewWorkspace() {
                     {publishing ? t('workspace.publishingDraft') : t('owner.publishChanges')}
                   </button>
                 ) : null}
+                {hasDraft && !pendingChangeCount && sourceReview && !sourceReview.url ? (
+                  // A disabled action with no reason is the failure the owner
+                  // cannot act on: name what publication is waiting for.
+                  <p className="helloada-draft-confirmation" role="status">{t('workspace.publishWaitsForPreview')}</p>
+                ) : null}
                 {publishNotice ? <p className="helloada-draft-confirmation" role="status" aria-live="polite">{publishNotice}</p> : null}
               </div> : null}
              </div>
@@ -2501,10 +2536,12 @@ function ReviewWorkspace() {
                    role="status"
                    aria-live="polite"
                  >
-                   {previewStatus === 'error' ? null : <span className="helloada-preview-status-spinner" aria-hidden="true" />}
+                   {previewStatus === 'error' ? null : previewStatus === 'build-required' ? null : <span className="helloada-preview-status-spinner" aria-hidden="true" />}
                    <span>{previewStatus === 'error'
                      ? t('workspace.previewError')
-                     : `${t('workspace.previewRefreshing')}${previewStepLabel(previewStep) ? ` · ${previewStepLabel(previewStep)}` : ''}`}</span>
+                     : previewStatus === 'build-required'
+                       ? t('workspace.previewBuildRequired')
+                       : `${t('workspace.previewRefreshing')}${previewStepLabel(previewStep) ? ` · ${previewStepLabel(previewStep)}` : ''}`}</span>
                    {previewStatus === 'error' && sourceReview?.draftId ? (
                      <button
                        type="button"
@@ -2515,7 +2552,7 @@ function ReviewWorkspace() {
                        {t('workspace.previewRebuild')}
                      </button>
                    ) : null}
-                   {previewStatus === 'error' ? (
+                   {previewStatus === 'error' || previewStatus === 'build-required' ? (
                      <button
                        type="button"
                        className="helloada-preview-retry"
@@ -2553,6 +2590,16 @@ function ReviewWorkspace() {
                            onClick={() => void rebuildPreview()}
                          >
                            {t('workspace.previewRebuild')}
+                         </button>
+                       ) : null}
+                       {previewStatus === 'error' || previewStatus === 'build-required' ? (
+                         <button
+                           type="button"
+                           className="helloada-preview-retry"
+                           title={t('workspace.previewAskAdaHint')}
+                           onClick={() => void askAdaAboutPreview()}
+                         >
+                           {t('workspace.previewAskAda')}
                          </button>
                        ) : null}
                      </div>

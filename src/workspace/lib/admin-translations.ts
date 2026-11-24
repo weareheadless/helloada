@@ -115,6 +115,7 @@ const en: AdminCopy = {
   'workspace.candidatePreviewFailed': 'Preview build failed; the retained candidate remains available for diagnosis.',
   'workspace.previewRefreshing': 'Refreshing preview…',
   'workspace.previewBuildRequired': 'This code change needs a compiled preview.',
+  'workspace.publishWaitsForPreview': 'Publish unlocks when the preview of this change is ready.',
   'workspace.previewError': 'Preview could not be refreshed.',
   'workspace.previewRebuild': 'Rebuild preview',
   'workspace.previewAskAda': 'Ask Ada to fix the preview',
