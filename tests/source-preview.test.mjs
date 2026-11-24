@@ -44,6 +44,21 @@ test('the workspace asks for its own review preview, not the newest on the site'
   )
 })
 
+test('the workspace uses the build answer it asked for instead of spinning', () => {
+  // Asking for a build and discarding the answer left the pane refreshing a
+  // preview the platform had already made, and left publication disabled with
+  // nothing the owner could do. Every answer is now classified.
+  const source = read('src/workspace/components/WebsiteWorkspace.tsx')
+  assert.match(source, /const started = \(await startResponse\.json\(\)/)
+  assert.match(source, /started\.status === 'ready' && startedUrl/)
+  assert.match(source, /adoptReadyPreview\(startedUrl/)
+  assert.match(source, /started\.status === 'failed'/)
+  // A disabled publication names what it is waiting for, and a preview that
+  // cannot be built offers the action instead of only describing the state.
+  assert.match(source, /workspace\.publishWaitsForPreview/)
+  assert.match(source, /previewStatus === 'error' \|\| previewStatus === 'build-required'/)
+})
+
 test('the workspace no longer proxies a compiled preview', () => {
   const proxy = read('src/lib/tenant-proxy.ts')
   assert.doesNotMatch(proxy, /next-router-state-tree|previewRuntimePath|redirect: previewRuntime/)
