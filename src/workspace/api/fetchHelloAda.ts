@@ -1,4 +1,5 @@
 import { helloAdaPath } from '../config/site'
+import { asJsonAnswer } from './json-answer'
 
 const ADMIN_REQUEST_TIMEOUT_MS = 25_000
 /** The workspace snapshot names every route and document; on a large site it is
@@ -19,7 +20,10 @@ export const fetchHelloAda = async (
 
   try {
     const resolvedInput = typeof input === 'string' ? helloAdaPath(input) : input
-    return await fetch(resolvedInput, { ...init, signal: controller.signal })
+    const response = await fetch(resolvedInput, { ...init, signal: controller.signal })
+    // The bridge may answer with the edge's plain text while the platform
+    // restarts; every caller here parses JSON, so normalise it once, here.
+    return await asJsonAnswer(response)
   } finally {
     clearTimeout(timeout)
     init.signal?.removeEventListener('abort', forwardAbort)

@@ -707,6 +707,23 @@ textarea:focus-visible {
   color: var(--helloada-negative);
   background: rgba(255, 109, 131, 0.08);
   font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+
+  span { flex: 1; }
+
+  button {
+    flex: none;
+    padding: 4px 10px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
 }
 
 .helloada-notice {

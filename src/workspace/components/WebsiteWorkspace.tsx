@@ -752,6 +752,9 @@ function ReviewWorkspace() {
   const previousSendingRef = useRef(false)
   const activeAdaPollRef = useRef<number | undefined>(undefined)
   const transientFailures = useRef({ workspace: 0, status: 0 })
+  // The workspace snapshot's own failure, kept apart from other surfaces: it is
+  // the one an owner can retry in place.
+  const [workspaceError, setWorkspaceError] = useState('')
   const chatWorking = sending || Boolean(pendingAdaJob)
 
   const scrollChatToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
@@ -1028,13 +1031,19 @@ function ReviewWorkspace() {
 
   const loadWorkspace = useCallback((background = false) => {
     if (!background) setLoading(true)
-    if (!background) setError('')
+    if (!background) {
+      setError('')
+      setWorkspaceError('')
+    }
     return fetchHelloAda('/api/helloada/workspace', { cache: 'no-store' }, WORKSPACE_SNAPSHOT_TIMEOUT_MS)
       .then(async (response) => {
         const body = (await response.json()) as WorkspaceSnapshot & { message?: string }
         if (!response.ok) throw new Error(responseMessage(body, t('error.workspaceLoad')))
         transientFailures.current.workspace = 0
         setWorkspace(body)
+        // The snapshot came back, so the reconnect banner it put up has to go:
+        // a failure left standing after recovery is a lie about the page.
+        setWorkspaceError('')
         // The snapshot is served by the same tenant bridge as Ada's status, so a
         // loaded workspace already proves Ada is reachable. The phase must not
         // wait on a second call that can fail on its own, or the owner sits on
@@ -1047,7 +1056,7 @@ function ReviewWorkspace() {
         // once repeated failures prove the connection is genuinely gone.
         transientFailures.current.workspace += 1
         const message = cause instanceof Error ? cause.message : t('error.workspaceLoad')
-        if (!background || transientFailures.current.workspace >= 3) setError(message)
+        if (!background || transientFailures.current.workspace >= 3) setWorkspaceError(message)
         else console.warn('workspace refresh temporarily unavailable', { message })
       })
       .finally(() => setLoading(false))
@@ -2392,7 +2401,8 @@ function ReviewWorkspace() {
   const recentBuildUpdates = (designBuild?.updates || []).slice(-4).reverse()
   return (
     <main className={`helloada-workspace helloada-owner-workspace shows-${mobilePane}`}>
-      {error ? <div className="helloada-alert" role="alert">{error}</div> : null}
+      {workspaceError ? <div className="helloada-alert" role="alert"><span>{workspaceError}</span><button type="button" onClick={() => void loadWorkspace()}>{t('owner.retry')}</button></div> : null}
+      {error ? <div className="helloada-alert" role="alert"><span>{error}</span></div> : null}
       <div className="helloada-pane-switch" role="group" aria-label={t('owner.workspace')}>
         <button type="button" id="helloada-ada-tab" aria-controls="helloada-ada-pane" aria-pressed={mobilePane === 'ada'} onClick={() => setMobilePane('ada')}>{t('workspace.askAda')}</button>
         <button type="button" id="helloada-website-tab" aria-controls="helloada-website-pane" aria-pressed={mobilePane === 'website'} onClick={() => setMobilePane('website')}>{t('owner.website')}{hasDraft ? <i aria-label={t('owner.readyReview')} /> : null}</button>
