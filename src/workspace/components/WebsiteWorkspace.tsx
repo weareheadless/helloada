@@ -263,7 +263,7 @@ type PreviewPlan = {
   head_sha?: string
 }
 
-type PreviewUiStatus = 'idle' | 'refreshing' | 'ready' | 'build-required' | 'error'
+type PreviewUiStatus = 'idle' | 'refreshing' | 'ready' | 'error'
 type PreviewViewport = 'desktop' | 'tablet' | 'mobile'
 
 type PendingAdaJob = {
@@ -892,12 +892,12 @@ function ReviewWorkspace() {
     if (candidatePreviewReady) {
       setLoadedCandidatePreview(candidatePreviewIdentity)
       setFailedCandidatePreview((current) => current === candidatePreviewIdentity ? '' : current)
-    } else if (previewPlan?.requires_build) {
-      setPreviewStatus('build-required')
-      return
     }
+    // A frame that loaded is a preview the owner can see. Reporting a missing
+    // compiled build over a document that is already on screen told the owner
+    // their change could not be shown while it was being shown.
     setPreviewStatus('ready')
-  }, [candidatePreviewReady, candidatePreviewIdentity, previewPlan])
+  }, [candidatePreviewReady, candidatePreviewIdentity])
 
   const previewStepLabel = (step: string) => {
     if (!step) return ''
@@ -908,11 +908,9 @@ function ReviewWorkspace() {
 
   const previewStatusMessage = previewStatus === 'refreshing'
     ? t('workspace.previewRefreshing')
-    : previewStatus === 'build-required'
-      ? t('workspace.previewBuildRequired')
-      : previewStatus === 'error'
-        ? t('workspace.previewError')
-        : ''
+    : previewStatus === 'error'
+      ? t('workspace.previewError')
+      : ''
 
   const selectedTarget = useMemo(() => {
     if (adaPhase === 'unknown') return undefined
@@ -1145,7 +1143,9 @@ function ReviewWorkspace() {
       if (draft?.kind === 'design') {
         // The durable design worker owns this exact preview. Never substitute
         // the published site or queue a branch-head build from the browser.
-        setPreviewStatus('build-required')
+        // The owner is waiting for a preview, not for an explanation of which
+        // build lane produces it, so this keeps reading as work in progress.
+        setPreviewStatus('refreshing')
         return
       }
 
@@ -1471,7 +1471,12 @@ function ReviewWorkspace() {
     ))
     setPreviewPlan(job.result?.preview)
     if (job.result?.preview?.requires_build) {
-      setPreviewStatus('build-required')
+      // The preview for this change is not built yet, but that is a stage of
+      // the work, not a state to leave the owner in. Ask for the plan again so
+      // the build is adopted the moment it exists, and keep saying "refreshing"
+      // rather than presenting a finished build as something still missing.
+      setPreviewStatus('refreshing')
+      void loadPreviewPlan()
     } else {
       setPreviewStatus('refreshing')
       setPreviewRevision((current) => current + 1)
@@ -1481,7 +1486,7 @@ function ReviewWorkspace() {
     setAdaSteps([])
     setSending(false)
     loadAdaStatus(job.conversation_id || conversationId, true)
-  }, [conversationId, forgetPendingAdaJob, loadAdaStatus, t])
+  }, [conversationId, forgetPendingAdaJob, loadAdaStatus, loadPreviewPlan, t])
 
   useEffect(() => {
     if (!pendingAdaJob || activeAdaPollRef.current === pendingAdaJob.jobId) return
@@ -2546,12 +2551,10 @@ function ReviewWorkspace() {
                    role="status"
                    aria-live="polite"
                  >
-                   {previewStatus === 'error' ? null : previewStatus === 'build-required' ? null : <span className="helloada-preview-status-spinner" aria-hidden="true" />}
+                   {previewStatus === 'error' ? null : <span className="helloada-preview-status-spinner" aria-hidden="true" />}
                    <span>{previewStatus === 'error'
                      ? t('workspace.previewError')
-                     : previewStatus === 'build-required'
-                       ? t('workspace.previewBuildRequired')
-                       : `${t('workspace.previewRefreshing')}${previewStepLabel(previewStep) ? ` · ${previewStepLabel(previewStep)}` : ''}`}</span>
+                     : `${t('workspace.previewRefreshing')}${previewStepLabel(previewStep) ? ` · ${previewStepLabel(previewStep)}` : ''}`}</span>
                    {previewStatus === 'error' && sourceReview?.draftId ? (
                      <button
                        type="button"
@@ -2562,7 +2565,7 @@ function ReviewWorkspace() {
                        {t('workspace.previewRebuild')}
                      </button>
                    ) : null}
-                   {previewStatus === 'error' || previewStatus === 'build-required' ? (
+                   {previewStatus === 'error' ? (
                      <button
                        type="button"
                        className="helloada-preview-retry"
@@ -2602,7 +2605,7 @@ function ReviewWorkspace() {
                            {t('workspace.previewRebuild')}
                          </button>
                        ) : null}
-                       {previewStatus === 'error' || previewStatus === 'build-required' ? (
+                       {previewStatus === 'error' ? (
                          <button
                            type="button"
                            className="helloada-preview-retry"

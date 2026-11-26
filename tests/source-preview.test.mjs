@@ -56,8 +56,19 @@ test('the workspace uses the build answer it asked for instead of spinning', () 
   // A disabled publication names what it is waiting for, and a preview that
   // cannot be built offers the action instead of only describing the state.
   assert.match(source, /workspace\.publishWaitsForPreview/)
-  assert.match(source, /previewStatus === 'error' \|\| previewStatus === 'build-required'/)
+  assert.match(source, /previewStatus === 'error' \? \(/)
 })
+
+test('a preview on screen is never reported as missing a build', () => {
+  // The owner has no use for which lane produces the frame. A document that
+  // loaded is the preview, and the waiting state for one still building is
+  // "refreshing" - the same words as every other preview in progress.
+  const source = read('src/workspace/components/WebsiteWorkspace.tsx')
+  assert.doesNotMatch(source, /build-required/)
+  assert.doesNotMatch(source, /previewBuildRequired/)
+  assert.match(source, /if \(candidatePreviewReady\) \{[\s\S]*?setPreviewStatus\('ready'\)/)
+})
+
 
 test('the workspace no longer proxies a compiled preview', () => {
   const proxy = read('src/lib/tenant-proxy.ts')
