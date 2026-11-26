@@ -300,10 +300,21 @@
   .helloada-gallery-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
   .helloada-gallery-card { min-width: 0; overflow: hidden; border: 1px solid var(--helloada-soft-line); border-radius: 14px; background: var(--helloada-panel-raised); transition: border-color 500ms var(--helloada-ease), transform 650ms var(--helloada-spring), background-color 500ms var(--helloada-ease); }
   .helloada-gallery-card:hover { border-color: rgba(255,107,94,.4); background: var(--helloada-inset); transform: translateY(-2px); }
+  /* The frame owns the size: an aspect-ratio box has no height for a child to
+     fill, so a positioned child is what keeps a clip or a still inside it. */
   .helloada-gallery-card-image { position: relative; aspect-ratio: 1.42; display: grid; place-items: center; overflow: hidden; background: var(--helloada-panel-soft); }
-  .helloada-gallery-card-image img, .helloada-gallery-card-image video { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .helloada-gallery-card-image img, .helloada-gallery-card-image video { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+  .helloada-gallery-card-image img { object-fit: cover; }
+  /* A clip is shown whole and centred; cropping a tall clip to the frame hid
+     the part that says what the clip is. The band is dark in every theme so a
+     letterboxed clip reads as media rather than as empty card. */
+  .helloada-gallery-card-image video { object-fit: contain; background: var(--helloada-video-band); }
   .helloada-gallery-card-image > span { color: var(--helloada-dim); font-size: 10px; }
-  .helloada-gallery-kind { position: absolute; top: 8px; left: 8px; display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px 3px 5px; border-radius: 999px; color: var(--helloada-ink); background: rgba(8, 12, 15, .72); border: 1px solid rgba(255, 255, 255, .16); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; pointer-events: none; }
+  /* The chip sits on a dark translucent plate over the media itself, so its
+     label is white in both themes. Its selector carries the frame class
+     because a bare `.helloada-gallery-kind` lost to the unavailable-placeholder
+     rule above, which is the other direct `span` child of this frame. */
+  .helloada-gallery-card-image > span.helloada-gallery-kind { position: absolute; z-index: 1; top: 8px; left: 8px; display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px 3px 5px; border-radius: 999px; color: #fff; background: rgba(8, 12, 15, .72); border: 1px solid rgba(255, 255, 255, .16); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; pointer-events: none; }
   .helloada-gallery-filter { display: inline-flex; gap: 4px; }
   .helloada-gallery-filter-chip { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 0 9px; border: 1px solid var(--helloada-soft-line); border-radius: 999px; color: var(--helloada-muted); background: transparent; cursor: pointer; font-size: 10px; }
   .helloada-gallery-filter-chip span { color: var(--helloada-dim); font-size: 9px; }
