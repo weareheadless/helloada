@@ -2039,11 +2039,6 @@ textarea:focus-visible {
   pointer-events: none;
 }
 
-.helloada-preview-status.is-build-required {
-  border-color: rgba(255, 198, 92, 0.46);
-  color: var(--helloada-violet);
-}
-
 .helloada-preview-status.is-error {
   border-color: rgba(255, 104, 122, 0.52);
   color: var(--helloada-negative);

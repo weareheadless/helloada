@@ -1144,20 +1144,27 @@ function Analytics({
   const events = Array.isArray(history.events) ? (history.events as Array<Record<string, unknown>>) : []
   const gaPages = Array.isArray(history.pages) ? (history.pages as Array<Record<string, unknown>>) : []
 
-  const gscDevices = new Map<string, { clicks: number; impressions: number }>()
-  const gscCountries = new Map<string, { clicks: number; impressions: number }>()
-  for (const row of currentQueries) {
-    const device = String(row.device || '(not set)')
-    const country = String(row.country || '(not set)')
-    const d = gscDevices.get(device) ?? { clicks: 0, impressions: 0 }
-    d.clicks += typeof row.clicks === 'number' ? row.clicks : 0
-    d.impressions += typeof row.impressions === 'number' ? row.impressions : 0
-    gscDevices.set(device, d)
-    const c = gscCountries.get(country) ?? { clicks: 0, impressions: 0 }
-    c.clicks += typeof row.clicks === 'number' ? row.clicks : 0
-    c.impressions += typeof row.impressions === 'number' ? row.impressions : 0
-    gscCountries.set(country, c)
+  // Device and country are grouped from whichever rows carry them: a dedicated
+  // dated read when the authority answers one, otherwise the query rows that
+  // already name both. Grouping from a panel that is not in the envelope left
+  // the Devices panel empty while its data was on screen in Top queries.
+  const groupBy = (dimension: 'device' | 'country') => {
+    const rows = Array.isArray(gsc?.[dimension === 'device' ? 'devices' : 'countries'])
+      ? (gsc?.[dimension === 'device' ? 'devices' : 'countries'] as Array<Record<string, unknown>>).filter((row) => inWindow(row.date, gscStart, gscEnd))
+      : []
+    const source = rows.length ? rows : currentQueries.filter((row) => row[dimension] !== undefined)
+    const grouped = new Map<string, { clicks: number; impressions: number }>()
+    for (const row of source) {
+      const label = String(row[dimension] || '(not set)')
+      const entry = grouped.get(label) ?? { clicks: 0, impressions: 0 }
+      entry.clicks += typeof row.clicks === 'number' ? row.clicks : 0
+      entry.impressions += typeof row.impressions === 'number' ? row.impressions : 0
+      grouped.set(label, entry)
+    }
+    return grouped
   }
+  const gscDevices = groupBy('device')
+  const gscCountries = groupBy('country')
   const top = (map: Map<string, { clicks: number; impressions: number }>) =>
     [...map.entries()].sort((a, b) => b[1].clicks - a[1].clicks || b[1].impressions - a[1].impressions).slice(0, 6)
 
