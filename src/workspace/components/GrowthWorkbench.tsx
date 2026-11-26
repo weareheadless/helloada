@@ -1278,8 +1278,12 @@ function Analytics({
           {top(gscDevices).length ? (
             <ul className="gw-bars">
               {top(gscDevices).map(([label, row]) => {
-                const max = Math.max(...top(gscDevices).map(([, item]) => item.clicks), 1)
-                return <li key={label}><span>{label}</span><i style={{ width: `${Math.max(2, (row.clicks / max) * 100)}%` }} /><b>{number(row.clicks) ?? 0}</b></li>
+                // A young property has impressions before it has clicks, and a
+                // bar drawn only from clicks showed every device as 0. Bar the
+                // measurement that exists and always name both.
+                const value = row.clicks || row.impressions
+                const max = Math.max(...top(gscDevices).map(([, item]) => item.clicks || item.impressions), 1)
+                return <li key={label}><span>{label}</span><i style={{ width: `${Math.max(2, (value / max) * 100)}%` }} /><b>{number(row.clicks) ?? 0}</b><small>{number(row.impressions) ?? 0} {t('growth.workbench.impressions')}</small></li>
               })}
             </ul>
           ) : <p className="gw-note">{t('growth.workbench.noMeasurement')}</p>}
