@@ -329,6 +329,20 @@
   .helloada-gallery-analysis { color: var(--helloada-dim); font-size: 9px; font-style: italic; }
   .helloada-gallery-use { display: inline-flex; align-items: center; justify-content: space-between; gap: 7px; min-height: 30px; padding: 0 9px; border: 1px solid var(--helloada-soft-line); border-radius: 8px; color: var(--helloada-muted); font-size: 10px; text-decoration: none; transition: color 500ms var(--helloada-ease), border-color 500ms var(--helloada-ease), background-color 500ms var(--helloada-ease); }
   .helloada-gallery-use:hover { border-color: rgba(255,107,94,.5); color: var(--helloada-ink); background: var(--helloada-cyan-soft); }
+  /* The owner's note is their own words about the picture, so it reads as a
+     field rather than as generated metadata. */
+  .helloada-gallery-note { display: grid; gap: 5px; }
+  .helloada-gallery-note > label { color: var(--helloada-dim); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
+  .helloada-gallery-note textarea { width: 100%; min-height: 60px; resize: vertical; padding: 7px 8px; border: 1px solid var(--helloada-soft-line); border-radius: 8px; color: var(--helloada-ink); background: var(--helloada-inset); font: inherit; font-size: 11px; line-height: 1.45; }
+  .helloada-gallery-note textarea:focus-visible { outline: 2px solid var(--helloada-cyan); outline-offset: 1px; }
+  .helloada-gallery-note-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+  .helloada-gallery-note-actions button { min-height: 26px; padding: 0 9px; border: 1px solid var(--helloada-soft-line); border-radius: 7px; color: var(--helloada-ink); background: var(--helloada-inset); cursor: pointer; font-size: 10px; }
+  .helloada-gallery-note-actions button:disabled { color: var(--helloada-dim); cursor: default; opacity: .65; }
+  .helloada-gallery-note-actions button.is-quiet { border-color: transparent; background: transparent; color: var(--helloada-dim); }
+  .helloada-gallery-note-actions button.is-quiet:hover:not(:disabled) { color: var(--helloada-ink); }
+  .helloada-gallery-note-actions small { font-size: 9px; }
+  .helloada-gallery-note-actions small.is-ok { color: var(--helloada-positive); }
+  .helloada-gallery-note-actions small.is-error { color: var(--helloada-negative); }
   .helloada-gallery-more { display: block; margin: 15px auto 2px; min-height: 34px; padding: 0 12px; border: 1px solid var(--helloada-soft-line); border-radius: 9px; color: var(--helloada-ink); background: var(--helloada-inset); cursor: pointer; font-size: 10px; }
   .helloada-publish-dialog[open] { @include surfaces.paper; display: flex; flex-direction: column; width: min(430px, calc(100% - 32px)); max-height: calc(100vh - 48px); overflow: hidden; padding: 30px; border: 1px solid var(--helloada-line); border-radius: 23px; background: var(--helloada-panel); color: var(--helloada-ink); }
   @supports (height: 100dvh) { .helloada-publish-dialog { max-height: calc(100dvh - 48px); } }
