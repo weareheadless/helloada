@@ -12,6 +12,7 @@ import { helloAdaPath } from '../config/site'
 import { mediaOrigin, mediaUrl, resolveMediaUrl } from '../lib/media'
 import { filterMedia, mediaCounts, mediaKind, type GalleryFilter } from '../lib/gallery-filter'
 import { mediaUploadKind, uploadMediaFile } from '../api/upload-media'
+import { ownerNoteChanged, ownerNoteRequest } from '../lib/owner-note'
 import { WorkspaceIcon } from './WorkspaceIcon'
 import { responseMessage } from '../api/response-message'
 
@@ -28,6 +29,10 @@ type GalleryMedia = {
   description?: string | null
   analysisStatus?: string | null
   tags?: string[]
+  /** The owner's own words about this file. Ada reads it; analysis never rewrites it. */
+  ownerNote?: string | null
+  /** The exact revision the note was read at, so a save cannot overwrite a newer change. */
+  documentHash?: string | null
 }
 
 /** The media library holds videos as well as images; only images can be drawn with <img>. */
@@ -74,6 +79,11 @@ export function HelloAdaGallery() {
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const analysisPollsRef = useRef(0)
+  // Notes are edited per picture and saved explicitly, so a note is never
+  // written while the owner is still typing it.
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({})
+  const [noteState, setNoteState] = useState<Record<string, '' | 'saving' | 'saved' | 'error'>>({})
+  const [noteErrors, setNoteErrors] = useState<Record<string, string>>({})
 
   const load = useCallback(async (nextPage: number, append: boolean, query: string) => {
     setLoading(true)
@@ -99,6 +109,47 @@ export function HelloAdaGallery() {
     const timer = window.setTimeout(() => void load(1, false, search), search ? 240 : 0)
     return () => window.clearTimeout(timer)
   }, [load, search])
+
+  const saveNote = async (item: GalleryMedia, explicitNote?: string) => {
+    const key = String(item.id)
+    const draft = explicitNote ?? noteDrafts[key] ?? item.ownerNote ?? ''
+    const request = ownerNoteRequest({
+      mediaId: item.id,
+      saved: item.ownerNote || '',
+      draft,
+      expectedHash: item.documentHash || '',
+    })
+    if (!request) {
+      // Nothing to send, or no usable revision: the owner is told why rather
+      // than a save silently doing nothing.
+      if (ownerNoteChanged({ mediaId: item.id, saved: item.ownerNote || '', draft, expectedHash: item.documentHash || '' })) {
+        setNoteErrors((current) => ({ ...current, [key]: t('owner.galleryNoteConflict') }))
+      }
+      return
+    }
+    setNoteState((current) => ({ ...current, [key]: 'saving' }))
+    setNoteErrors((current) => ({ ...current, [key]: '' }))
+    try {
+      const response = await fetchHelloAda('/api/helloada/media/note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: request.mediaId, note: request.note, expectedHash: request.expectedHash }),
+      })
+      const body = (await response.json()) as { ownerNote?: string; expectedHash?: string; message?: string }
+      if (!response.ok) throw new Error(body.message || t('owner.galleryNoteFailed'))
+      setMedia((current) => current.map((known) => String(known.id) === key
+        ? { ...known, ownerNote: body.ownerNote ?? request.note, documentHash: body.expectedHash || known.documentHash }
+        : known))
+      setNoteDrafts((current) => ({ ...current, [key]: body.ownerNote ?? request.note }))
+      setNoteState((current) => ({ ...current, [key]: 'saved' }))
+    } catch (cause) {
+      setNoteState((current) => ({ ...current, [key]: 'error' }))
+      setNoteErrors((current) => ({
+        ...current,
+        [key]: cause instanceof Error ? cause.message : t('owner.galleryNoteFailed'),
+      }))
+    }
+  }
 
   /**
    * One request per file keeps every upload on the same canonical
@@ -255,6 +306,58 @@ export function HelloAdaGallery() {
                     {item.analysisStatus && item.analysisStatus !== 'ready' ? (
                       <small className="helloada-gallery-analysis">{t(item.analysisStatus === 'failed' ? 'workspace.analysisUnavailable' : 'owner.galleryAnalysing')}</small>
                     ) : null}
+                    {(() => {
+                      const key = String(item.id)
+                      const draft = noteDrafts[key] ?? item.ownerNote ?? ''
+                      const state = noteState[key]
+                      const changed = ownerNoteChanged({
+                        mediaId: item.id,
+                        saved: item.ownerNote || '',
+                        draft,
+                        expectedHash: item.documentHash || '',
+                      })
+                      return (
+                        <div className="helloada-gallery-note">
+                          <label htmlFor={`gallery-note-${key}`}>{t('owner.galleryNoteLabel')}</label>
+                          <textarea
+                            id={`gallery-note-${key}`}
+                            value={draft}
+                            rows={3}
+                            maxLength={2_000}
+                            placeholder={t('owner.galleryNotePlaceholder')}
+                            onChange={(event) => {
+                              const value = event.target.value
+                              setNoteDrafts((current) => ({ ...current, [key]: value }))
+                              setNoteState((current) => ({ ...current, [key]: '' }))
+                            }}
+                          />
+                          <div className="helloada-gallery-note-actions">
+                            <button
+                              type="button"
+                              disabled={!changed || state === 'saving'}
+                              onClick={() => void saveNote(item)}
+                            >
+                              {state === 'saving' ? t('owner.galleryNoteSaving') : t('owner.galleryNoteSave')}
+                            </button>
+                            {item.ownerNote ? (
+                              <button
+                                type="button"
+                                className="is-quiet"
+                                disabled={state === 'saving'}
+                                onClick={() => {
+                                  setNoteDrafts((current) => ({ ...current, [key]: '' }))
+                                  void saveNote(item, '')
+                                }}
+                              >
+                                {t('owner.galleryNoteClear')}
+                              </button>
+                            ) : null}
+                            {state === 'saved' && !changed ? <small className="is-ok">{t('owner.galleryNoteSaved')}</small> : null}
+                            {noteErrors[key] ? <small className="is-error" role="alert">{noteErrors[key]}</small> : null}
+                          </div>
+                        </div>
+                      )
+                    })()}
                     <Link className="helloada-gallery-use" href={conversationHref(item, pathname)}>{t('owner.galleryUseInChat')}<WorkspaceIcon name="arrow" size={15} /></Link>
                   </div>
                 </article>
