@@ -1810,7 +1810,7 @@ function ReviewWorkspace() {
 
   const sendMessage = async (preset?: string) => {
     const attachments = preset ? [] : pendingAttachments
-    const text = (preset || message).trim() || (attachments.length ? 'Please review the attached images.' : '')
+    const text = (preset || message).trim() || (attachments.length ? 'Please review the attached files.' : '')
     if (!canSendChatAttachments(Boolean(text), attachments.length, uploadEntries.map((entry) => entry.status)) || chatWorking || uploadingMedia) return
     setSending(true)
     setError('')
@@ -2859,7 +2859,7 @@ function ReviewWorkspace() {
                 ref={fileInputRef}
                 className="helloada-file-input"
                 type="file"
-                accept="image/*"
+                accept="image/*,video/*"
                 multiple
                 onChange={(event) => {
                   if (event.target.files) void uploadImages(event.target.files)
