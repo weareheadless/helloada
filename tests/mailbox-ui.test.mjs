@@ -14,6 +14,17 @@ test('the mailbox is mounted at the canonical site path', () => {
   assert.match(page, /loadSiteView\(site\)/)
 })
 
+test('one origin serves many tenants, so the mailbox runtime is keyed on the tenant', () => {
+  // Every website's mailbox renders from helloada.app. Without the tenant in the
+  // mailbox identity, the package's caches and browser storage are shared by
+  // whichever sites the owner visited, which is the defect this key prevents.
+  const page = read('src/app/[site]/mail/[[...path]]/page.tsx')
+  assert.match(page, /key=\{tenantId\}/, 'the mailbox must remount per tenant')
+  assert.match(page, /tenantKey: tenantId/, 'the mailbox config must carry the tenant identity')
+  const types = read('src/types/helloada-mailbox-ui.d.ts')
+  assert.match(types, /MailboxConfig = \{ apiBase: string; basePath: string; tenantKey: string \}/)
+})
+
 test('the mailbox shares the control-plane navigation', () => {
   const nav = read('src/workspace/SiteNav.tsx')
   assert.match(nav, /sitePath\(slug, '\/mail'\)/)
