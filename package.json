@@ -20,7 +20,7 @@
     "@payloadcms/richtext-lexical": "3.88.0",
     "@payloadcms/storage-r2": "3.88.0",
     "@payloadcms/translations": "3.88.0",
-    "@weareheadless/helloada-mailbox-ui": "https://github.com/weareheadless/site-agent/releases/download/helloada-mailbox-ui-v0.3.1/weareheadless-helloada-mailbox-ui-0.3.1.tgz",
+    "@weareheadless/helloada-mailbox-ui": "https://github.com/weareheadless/site-agent/releases/download/helloada-mailbox-ui-v0.4.2/weareheadless-helloada-mailbox-ui-0.4.2.tgz",
     "next": "16.3.4",
     "payload": "3.88.0",
     "react": "19.2.6",

@@ -46,9 +46,14 @@ export default async function SiteMailPage({
       />
       <main className="helloada-mailbox-page">
         <MailboxApp
+          // The tenant is part of the mailbox identity, not just its API base:
+          // the package keeps caches and browser storage per tenant, and this
+          // key remounts it so no state can survive a move between websites.
+          key={tenantId}
           config={{
             apiBase: `/api/helloada/websites/${encodeURIComponent(slug)}/owner/mail`,
             basePath: sitePath(slug, '/mail'),
+            tenantKey: tenantId,
           }}
           path={mailboxPath}
           locale={language}

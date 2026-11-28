@@ -9,7 +9,7 @@
 declare module '@weareheadless/helloada-mailbox-ui' {
   import type { ReactNode } from 'react'
 
-  export type MailboxConfig = { apiBase: string; basePath: string }
+  export type MailboxConfig = { apiBase: string; basePath: string; tenantKey: string }
 
   export function MailboxApp(props: {
     config: MailboxConfig
